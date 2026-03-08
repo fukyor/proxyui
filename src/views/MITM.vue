@@ -416,7 +416,12 @@ async function downloadBody(bodyKey) {
       alert(result.message)
       return
     }
-    window.open(result.data.downloadUrl, '_blank')
+    const a = document.createElement('a')
+    a.href = result.data.downloadUrl
+    a.style.display = 'none'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
   } catch (e) {
     alert('下载请求失败: ' + e.message)
   }

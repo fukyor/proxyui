@@ -29,8 +29,59 @@ const localConfig = ref({
   KeepDestHeaders: true,
   ConnectMaintain: false,
   MitmEnabled: false,
-  HttpMitmNoTunnel: false
+  HttpMitmNoTunnel: false,
+  PublicIPs: []  // 新增
 })
+
+// 公网 IP 输入（逗号分隔的字符串）
+const publicIPsText = ref('')
+const ipValidationError = ref('')
+
+// 将数组转换为逗号分隔字符串
+const arrayToCommaString = (arr) => {
+  if (!arr || !Array.isArray(arr) || arr.length === 0) return ''
+  return arr.join(', ')
+}
+
+// 验证并解析 IP 输入
+function validateAndParseIPs() {
+  const text = publicIPsText.value.trim()
+  ipValidationError.value = ''
+
+  if (!text) {
+    localConfig.value.PublicIPs = []
+    return
+  }
+
+  // 检测分隔符：必须使用英文逗号
+  if (text.includes('，') || text.includes('、')) {
+    ipValidationError.value = '错误：必须使用英文逗号 (,) 分隔 IP 地址'
+    // 恢复原有值
+    publicIPsText.value = arrayToCommaString(localConfig.value.PublicIPs)
+    return
+  }
+
+  // 分割并清理
+  const parts = text.split(',').map(s => s.trim()).filter(s => s)
+
+  if (parts.length === 0) {
+    localConfig.value.PublicIPs = []
+    return
+  }
+
+  // 基本验证：每个部分不能为空
+  for (const part of parts) {
+    if (!part) {
+      ipValidationError.value = '错误：IP 地址不能为空'
+      publicIPsText.value = arrayToCommaString(localConfig.value.PublicIPs)
+      return
+    }
+  }
+
+  // 保存解析后的 IP 列表
+  localConfig.value.PublicIPs = parts
+  publicIPsText.value = arrayToCommaString(parts)
+}
 
 // 变更检测
 const originalConfigStr = ref('')
@@ -56,8 +107,11 @@ async function loadConfig() {
       KeepDestHeaders: cfg.KeepDestHeaders ?? true,
       ConnectMaintain: cfg.ConnectMaintain ?? false,
       MitmEnabled: cfg.MitmEnabled ?? false,
-      HttpMitmNoTunnel: cfg.HttpMitmNoTunnel ?? false
+      HttpMitmNoTunnel: cfg.HttpMitmNoTunnel ?? false,
+      PublicIPs: cfg.PublicIPs ?? []  // 新增
     }
+    // 新增：同步到文本框
+    publicIPsText.value = arrayToCommaString(localConfig.value.PublicIPs)
     originalConfigStr.value = JSON.stringify(localConfig.value)
   } catch (e) {
     errorMsg.value = `加载配置失败: ${e.message}`
@@ -114,6 +168,30 @@ async function saveConfig() {
         <span class="hint" style="margin: 0">修改后需重启代理服务生效</span>
       </div>
     </div>
+
+    <!-- ===== 新增：代理防环配置 ===== -->
+    <div class="section">
+      <h3>代理防环</h3>
+      <div class="public-ips-row">
+        <span>公网 IP 列表</span>
+        <input
+          type="text"
+          v-model="publicIPsText"
+          class="input input-ips"
+          placeholder="117.72.191.85, gzyddyx.com"
+          @blur="validateAndParseIPs"
+        />
+        <span class="hint">多个 IP/域名用英文逗号分隔，云服务器部署时必须配置</span>
+      </div>
+      <div v-if="ipValidationError" class="alert alert-error" style="margin-top: 10px;">
+        {{ ipValidationError }}
+      </div>
+      <div v-if="localConfig.PublicIPs && localConfig.PublicIPs.length > 0" class="ips-display">
+        <span class="ips-label">已配置：</span>
+        <span v-for="(ip, idx) in localConfig.PublicIPs" :key="idx" class="ip-tag">{{ ip }}</span>
+      </div>
+    </div>
+    <!-- ===== 新增结束 ===== -->
 
     <!-- 高级开关 -->
     <div class="section">
@@ -323,5 +401,39 @@ input:checked + .slider:before {
   background: rgba(95, 173, 138, 0.15);
   color: #5fad8a;
   border: 1px solid #5fad8a;
+}
+
+.public-ips-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.input-ips {
+  flex: 1;
+  min-width: 300px;
+}
+
+.ips-display {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ips-label {
+  font-size: 0.85rem;
+  color: #888;
+}
+
+.ip-tag {
+  background: #0d4a65;
+  color: #cba376;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-family: monospace;
 }
 </style>
