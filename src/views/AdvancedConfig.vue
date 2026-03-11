@@ -30,7 +30,16 @@ const localConfig = ref({
   ConnectMaintain: false,
   MitmEnabled: false,
   HttpMitmNoTunnel: false,
-  PublicIPs: []  // 新增
+  PublicIPs: [],  // 新增
+  MinioConfig: {
+    endpoint: '127.0.0.1:9000',
+    publicEndpoint: '',
+    accessKeyId: 'root',
+    secretAccessKey: '12345678',
+    useSSL: false,
+    bucket: 'bodydata',
+    enabled: true,
+  }
 })
 
 // 公网 IP 输入（逗号分隔的字符串）

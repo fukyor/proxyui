@@ -12,7 +12,9 @@ export const useWebSocketStore = defineStore('websocket', () => {
     connections: true,
     logs: true,
     logLevel: 'INFO',
-    mitm: true
+    mitm: true,
+    interceptLogs: true,
+    userTraffic: false
   })
 
   // ==================== 数据 ====================
@@ -22,11 +24,14 @@ export const useWebSocketStore = defineStore('websocket', () => {
   const historyConnectionsSet = new Set() // 去重闭合连接
   const logs = ref([])            // 日志列表
   const mitmExchanges = ref([])   // MITM 交换记录
+  const interceptLogs = ref([])   // 拦截日志列表
+  const userTrafficList = ref([])  // 用户流量列表
   const apiUrl = ref('')           // API 基础地址（用于下载等 HTTP 请求）
 
   const MAX_HISTORY = 60  // 最近 60 秒流量历史
   const MAX_LOGS = 500
   const MAX_MITM_EXCHANGES = 2000
+  const MAX_INTERCEPT_LOGS = 500
   const MAX_SNAPSHOT_CONNECTIONS = 3000  // 详细连接界面只展示前3000条连接
   const MAX_HISTORY_CONNECTIONS = 1000 // 历史连接最多展示1000条
 
@@ -107,7 +112,9 @@ export const useWebSocketStore = defineStore('websocket', () => {
         subscriptions.value.traffic && 'traffic',
         subscriptions.value.connections && 'connections',
         subscriptions.value.logs && 'logs',
-        subscriptions.value.mitm && 'mitm_detail'
+        subscriptions.value.mitm && 'mitm_detail',
+        subscriptions.value.interceptLogs && 'intercept_logs',
+        subscriptions.value.userTraffic && 'user_traffic'
       ].filter(Boolean),
       logLevel: subscriptions.value.logLevel
     }))
@@ -161,6 +168,12 @@ export const useWebSocketStore = defineStore('websocket', () => {
       case 'mitm_exchange_batch':
         handleMITMExchangeBatch(msg.data)
         break
+      case 'intercept_log_batch':
+        handleInterceptLogBatch(msg.data)
+        break
+      case 'user_traffic':
+        userTrafficList.value = msg.data
+        break
     }
   }
 
@@ -172,6 +185,14 @@ export const useWebSocketStore = defineStore('websocket', () => {
       ? updated.slice(-MAX_MITM_EXCHANGES)
       : updated
     mitmSubscribers.value.forEach(cb => cb())
+  }
+
+  function handleInterceptLogBatch(dataArray) {
+    if (!dataArray || dataArray.length === 0) return
+    const updated = interceptLogs.value.concat(dataArray)
+    interceptLogs.value = updated.length > MAX_INTERCEPT_LOGS
+      ? updated.slice(-MAX_INTERCEPT_LOGS)
+      : updated
   }
 
   /**
@@ -378,6 +399,48 @@ export const useWebSocketStore = defineStore('websocket', () => {
     mitmExchanges.value = []
   }
 
+  /**
+   * 开启拦截日志订阅（进入安全策略页时调用）
+   */
+  function subscribeInterceptLogs() {
+    subscriptions.value.interceptLogs = true
+    subscribe()
+  }
+
+  /**
+   * 关闭拦截日志订阅（离开安全策略页时调用）
+   */
+  function unsubscribeInterceptLogs() {
+    subscriptions.value.interceptLogs = false
+    subscribe()
+  }
+
+  /**
+   * 清除拦截日志
+   */
+  function clearInterceptLogs() {
+    interceptLogs.value = []
+  }
+
+  // 开启用户流量订阅（进入用户监控页时调用）
+  function subscribeUserTraffic() {
+    subscriptions.value.userTraffic = true
+    subscribe()
+  }
+
+  // 关闭用户流量订阅（离开用户监控页时调用）
+  function unsubscribeUserTraffic() {
+    subscriptions.value.userTraffic = false
+    subscribe()
+  }
+
+  // 发送断开指定 IP 所有连接的动作
+  function closeUserConnections(ip) {
+    if (socket.value?.readyState === WebSocket.OPEN) {
+      socket.value.send(JSON.stringify({ action: 'closeUserConnections', ip }))
+    }
+  }
+
   // ==================== 配置管理 ====================
 
   /**
@@ -408,6 +471,7 @@ export const useWebSocketStore = defineStore('websocket', () => {
     historyConnections,
     logs,
     mitmExchanges,
+    interceptLogs,
     apiUrl,
     connect,
     disconnect,
@@ -422,6 +486,13 @@ export const useWebSocketStore = defineStore('websocket', () => {
     clearLogs,
     subscribeMITM,
     clearMitmExchanges,
+    subscribeInterceptLogs,
+    unsubscribeInterceptLogs,
+    clearInterceptLogs,
+    userTrafficList,
+    subscribeUserTraffic,
+    unsubscribeUserTraffic,
+    closeUserConnections,
     config,
     loadConfig,
     saveConfig

@@ -1,5 +1,57 @@
 <script setup>
-import { RouterLink, RouterView } from 'vue-router'
+import { RouterLink, RouterView, useRoute } from 'vue-router'
+import { ref, onMounted, watch } from 'vue'
+
+const route = useRoute()
+
+// 展开的菜单项
+const expandedMenus = ref(new Set())
+
+// 从 localStorage 恢复展开状态
+onMounted(() => {
+  const saved = localStorage.getItem('expandedMenus')
+  if (saved) {
+    try {
+      expandedMenus.value = new Set(JSON.parse(saved))
+    } catch (e) {
+      console.error('Failed to parse expandedMenus:', e)
+    }
+  }
+
+  // 如果当前路由是子页面，自动展开父菜单
+  if (route.path.startsWith('/dashboard/security-policy/')) {
+    expandedMenus.value.add('security-policy')
+    saveExpandedState()
+  }
+})
+
+// 监听路由变化，自动展开对应的父菜单
+watch(() => route.path, (newPath) => {
+  if (newPath.startsWith('/dashboard/security-policy/')) {
+    expandedMenus.value.add('security-policy')
+    saveExpandedState()
+  }
+})
+
+// 切换展开状态
+function toggleMenu(menuId) {
+  if (expandedMenus.value.has(menuId)) {
+    expandedMenus.value.delete(menuId)
+  } else {
+    expandedMenus.value.add(menuId)
+  }
+  saveExpandedState()
+}
+
+// 保存展开状态到 localStorage
+function saveExpandedState() {
+  localStorage.setItem('expandedMenus', JSON.stringify([...expandedMenus.value]))
+}
+
+// 检查菜单项是否激活
+function isSecurityPolicyActive() {
+  return route.path.startsWith('/dashboard/security-policy')
+}
 </script>
 
 <template>
@@ -150,6 +202,75 @@ import { RouterLink, RouterView } from 'vue-router'
           <span>路由配置</span>
         </RouterLink>
 
+        <div class="nav-item-wrapper">
+          <div
+            class="nav-item parent-nav-item"
+            :class="{ active: isSecurityPolicyActive() }"
+            @click="toggleMenu('security-policy')"
+          >
+            <!-- Icon for Security Policy（盾牌） -->
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              <line x1="9" y1="12" x2="11" y2="14"></line>
+              <line x1="15" y1="10" x2="11" y2="14"></line>
+            </svg>
+            <span>安全策略</span>
+            <!-- 展开/折叠指示器 -->
+            <svg
+              class="expand-icon"
+              :class="{ expanded: expandedMenus.has('security-policy') }"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
+
+          <!-- 子菜单 -->
+          <div class="sub-menu" v-show="expandedMenus.has('security-policy')">
+            <RouterLink to="/dashboard/security-policy/access-control" class="nav-item sub-nav-item" active-class="active">
+              <span class="sub-item-dot">•</span>
+              <span>访问控制</span>
+            </RouterLink>
+            <RouterLink to="/dashboard/security-policy/user-monitoring" class="nav-item sub-nav-item" active-class="active">
+              <span class="sub-item-dot">•</span>
+              <span>用户监控</span>
+            </RouterLink>
+          </div>
+        </div>
+
+        <RouterLink to="/dashboard/storage-config" class="nav-item" active-class="active">
+          <!-- Icon for Storage Config（数据库桶）-->
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+          </svg>
+          <span>存储配置</span>
+        </RouterLink>
+
         <RouterLink to="/dashboard/advanced-config" class="nav-item" active-class="active">
           <!-- Icon for Advanced Config -->
           <svg
@@ -227,6 +348,51 @@ import { RouterLink, RouterView } from 'vue-router'
   background-color: rgba(203, 163, 118, 0.15);
   color: #cba376;
   font-weight: 500;
+}
+
+/* 父菜单项样式 */
+.nav-item-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+.parent-nav-item {
+  cursor: pointer;
+  position: relative;
+}
+
+.expand-icon {
+  margin-left: auto;
+  transition: transform 0.3s;
+}
+
+.expand-icon.expanded {
+  transform: rotate(180deg);
+}
+
+/* 子菜单样式 */
+.sub-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+  margin-bottom: 6px;
+}
+
+.sub-nav-item {
+  padding-left: 40px !important;
+  font-size: 0.85rem;
+  gap: 8px;
+}
+
+.sub-item-dot {
+  font-size: 1.2rem;
+  line-height: 1;
+  color: #666;
+}
+
+.sub-nav-item.active .sub-item-dot {
+  color: #cba376;
 }
 
 .main-content {

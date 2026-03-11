@@ -8,6 +8,9 @@ import Logs from '../views/Logs.vue'
 import MITM from '../views/MITM.vue'
 import RouteConfig from '../views/RouteConfig.vue'
 import AdvancedConfig from '../views/AdvancedConfig.vue'
+import StorageConfig from '../views/StorageConfig.vue'
+import SecurityPolicyLayout from '../views/SecurityPolicyLayout.vue'
+import AccessControl from '../views/AccessControl.vue'
 import { useWebSocketStore } from '../stores/websocket'
 
 const router = createRouter({
@@ -60,6 +63,31 @@ const router = createRouter({
           path: 'advanced-config',
           name: 'advanced-config',
           component: AdvancedConfig,
+        },
+        {
+          path: 'storage-config',
+          name: 'storage-config',
+          component: StorageConfig,
+        },
+        {
+          path: 'security-policy',
+          component: SecurityPolicyLayout,
+          children: [
+            {
+              path: '',
+              redirect: '/dashboard/security-policy/access-control'
+            },
+            {
+              path: 'access-control',
+              name: 'access-control',
+              component: AccessControl,
+            },
+            {
+              path: 'user-monitoring',
+              name: 'user-monitoring',
+              component: () => import('../views/UserMonitoring.vue'),
+            }
+          ]
         },
       ],
     },
