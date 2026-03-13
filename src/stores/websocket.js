@@ -441,6 +441,13 @@ export const useWebSocketStore = defineStore('websocket', () => {
     }
   }
 
+  // 发送一键清理离线用户的动作
+  function cleanOfflineUsers() {
+    if (socket.value?.readyState === WebSocket.OPEN) {
+      socket.value.send(JSON.stringify({ action: 'cleanOfflineUsers' }))
+    }
+  }
+
   // ==================== 配置管理 ====================
 
   /**
@@ -493,6 +500,7 @@ export const useWebSocketStore = defineStore('websocket', () => {
     subscribeUserTraffic,
     unsubscribeUserTraffic,
     closeUserConnections,
+    cleanOfflineUsers,
     config,
     loadConfig,
     saveConfig

@@ -24,6 +24,13 @@
         placeholder="搜索 IP 地址..."
         class="search-input"
       />
+      <button
+        class="btn-clean-offline"
+        :disabled="isCleaning || !wsStore.isConnected || wsStore.userTrafficList.length === 0"
+        @click="handleCleanOffline"
+      >
+        {{ isCleaning ? '清理中...' : '一键清理离线' }}
+      </button>
     </div>
 
     <!-- 表格 -->
@@ -106,7 +113,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import { useWebSocketStore } from '@/stores/websocket'
 
@@ -114,6 +121,8 @@ const wsStore = useWebSocketStore()
 const searchQuery = ref('')
 const expandedIPs = ref(new Set())
 const scrollerRef = ref(null)
+const isCleaning = ref(false)
+const pendingCleanupRequest = ref(false)
 
 // 在线用户数
 const onlineCount = computed(() => {
@@ -171,6 +180,21 @@ function toggleExpand(ip) {
   if (set.has(ip)) { set.delete(ip) } else { set.add(ip) }
   expandedIPs.value = new Set(set)
 }
+
+// 一键清理离线用户
+function handleCleanOffline() {
+  isCleaning.value = true
+  pendingCleanupRequest.value = true
+  wsStore.cleanOfflineUsers()
+}
+
+// 收到 user_traffic 更新后恢复按钮状态
+watch(() => wsStore.userTrafficList, () => {
+  if (pendingCleanupRequest.value) {
+    isCleaning.value = false
+    pendingCleanupRequest.value = false
+  }
+})
 
 // 断开连接
 function handleDisconnect(ip) {
@@ -415,6 +439,26 @@ onUnmounted(() => wsStore.unsubscribeUserTraffic())
 .btn-disconnect:hover {
   background: rgba(220, 53, 69, 0.2);
   color: #ff4d4d;
+}
+
+.btn-clean-offline {
+  background: transparent;
+  color: #cba376;
+  border: 1px solid #cba376;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: all 0.2s;
+  margin-left: 12px;
+  white-space: nowrap;
+}
+.btn-clean-offline:hover:not(:disabled) {
+  background: rgba(203, 163, 118, 0.2);
+}
+.btn-clean-offline:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* 滚动条样式 */
