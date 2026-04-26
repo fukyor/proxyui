@@ -90,6 +90,12 @@
                   @click.stop="handleDisconnect(flatList[row.index].ip)"
                   title="断开该 IP 所有连接"
                 >断开</button>
+                <button
+                  class="btn-block"
+                  :disabled="blockedIpSet.has(flatList[row.index].ip) || blockingIp === flatList[row.index].ip"
+                  @click.stop="handleBlock(flatList[row.index].ip)"
+                  :title="blockedIpSet.has(flatList[row.index].ip) ? '该 IP 已在用户拦截列表中' : '将该 IP 加入用户拦截列表'"
+                >{{ blockedIpSet.has(flatList[row.index].ip) ? '已封禁' : (blockingIp === flatList[row.index].ip ? '封禁中...' : '封禁') }}</button>
               </div>
             </div>
 
@@ -123,10 +129,24 @@ const expandedIPs = ref(new Set())
 const scrollerRef = ref(null)
 const isCleaning = ref(false)
 const pendingCleanupRequest = ref(false)
+const blockingIp = ref('')
 
 // 在线用户数
 const onlineCount = computed(() => {
   return wsStore.userTrafficList.filter(item => item.online).length
+})
+
+const blockedIpSet = computed(() => {
+  const rules = wsStore.config?.UserBlockRules ?? []
+  const set = new Set()
+  rules.forEach(rule => {
+    String(rule.Value || '')
+      .split(',')
+      .map(item => item.trim())
+      .filter(Boolean)
+      .forEach(ip => set.add(ip))
+  })
+  return set
 })
 
 // 过滤 + 排序（在线优先，同状态按总流量降序）
@@ -203,6 +223,66 @@ function handleDisconnect(ip) {
   }
 }
 
+async function refreshConfigState() {
+  try {
+    await wsStore.loadConfig()
+  } catch (error) {
+    console.error('加载配置失败:', error)
+  }
+}
+
+async function handleBlock(ip) {
+  if (blockedIpSet.value.has(ip)) {
+    alert(`IP ${ip} 已在用户拦截列表中`)
+    return
+  }
+  if (!confirm(`确定要封禁 IP ${ip} 吗？保存后会立即断开当前连接并拦截后续请求。`)) {
+    return
+  }
+
+  blockingIp.value = ip
+  try {
+    const cfg = await wsStore.loadConfig()
+    const currentRules = cfg.UserBlockRules ?? []
+    const alreadyExists = currentRules.some(rule =>
+      String(rule.Value || '')
+        .split(',')
+        .map(item => item.trim())
+        .filter(Boolean)
+        .includes(ip)
+    )
+    if (alreadyExists) {
+      alert(`IP ${ip} 已在用户拦截列表中`)
+      return
+    }
+
+    const nextId = currentRules.reduce((max, rule) => {
+      const id = Number(rule.Id) || 0
+      return id > max ? id : max
+    }, 0) + 1
+
+    const merged = {
+      ...cfg,
+      UserBlockRules: [
+        ...currentRules,
+        {
+          Id: nextId,
+          Value: ip,
+          Enable: true,
+          Remarks: '来自用户监控页封禁'
+        }
+      ]
+    }
+
+    await wsStore.saveConfig(merged)
+    alert(`IP ${ip} 已加入用户拦截列表`)
+  } catch (error) {
+    alert(`封禁失败: ${error.message}`)
+  } finally {
+    blockingIp.value = ''
+  }
+}
+
 // 格式化字节数
 function formatBytes(bytes) {
   if (bytes === 0) return '0 B'
@@ -213,7 +293,10 @@ function formatBytes(bytes) {
 }
 
 // 生命周期
-onMounted(() => wsStore.subscribeUserTraffic())
+onMounted(() => {
+  wsStore.subscribeUserTraffic()
+  refreshConfigState()
+})
 onUnmounted(() => wsStore.unsubscribeUserTraffic())
 </script>
 
@@ -302,7 +385,7 @@ onUnmounted(() => wsStore.unsubscribeUserTraffic())
 /* Grid 行布局 */
 .grid-row {
   display: grid;
-  grid-template-columns: 100px 1.5fr 1fr 1fr 1fr 100px;
+  grid-template-columns: 100px 1.5fr 1fr 1fr 1fr 180px;
   align-items: center;
   color: #cba376;
 }
@@ -423,6 +506,7 @@ onUnmounted(() => wsStore.unsubscribeUserTraffic())
 .action-cell {
   display: flex;
   justify-content: center;
+  gap: 8px;
 }
 
 .btn-disconnect {
@@ -439,6 +523,26 @@ onUnmounted(() => wsStore.unsubscribeUserTraffic())
 .btn-disconnect:hover {
   background: rgba(220, 53, 69, 0.2);
   color: #ff4d4d;
+}
+
+.btn-block {
+  background: transparent;
+  color: #cba376;
+  border: 1px solid #cba376;
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8em;
+  transition: all 0.2s;
+}
+
+.btn-block:hover:not(:disabled) {
+  background: rgba(203, 163, 118, 0.2);
+}
+
+.btn-block:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .btn-clean-offline {

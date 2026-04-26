@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useWebSocketStore } from '@/stores/websocket.js'
 
 const wsStore = useWebSocketStore()
@@ -12,7 +12,8 @@ const successMsg = ref('')
 // 本地配置副本
 const localConfig = ref({
   AccessEnable: false,
-  AccessRules: []
+  AccessRules: [],
+  UserBlockRules: []
 })
 
 const originalConfigStr = ref('')
@@ -24,6 +25,7 @@ const hasChanges = computed(() => {
 
 // 新规则输入
 const newRule = ref({ Type: 'DomainSuffix', Value: '', Enable: true, Remarks: '' })
+const newUserBlockRule = ref({ Value: '', Enable: true, Remarks: '' })
 
 const ruleTypes = [
   { value: 'DomainSuffix', label: '域名后缀' },
@@ -45,22 +47,43 @@ const nextRuleId = computed(() => {
   return ids.length > 0 ? Math.max(...ids) + 1 : 1
 })
 
-// 监听中文逗号
-watch(() => newRule.value.Value, (newVal) => {
-  if (newVal && newVal.includes('，')) {
-    errorMsg.value = '检测到中文逗号 "，"，已自动替换为英文逗号'
-    newRule.value.Value = newVal.replace(/，/g, ',')
-    setTimeout(() => {
-      if (errorMsg.value === '检测到中文逗号 "，"，已自动替换为英文逗号') {
-        errorMsg.value = ''
-      }
-    }, 3000)
-  }
+const nextUserBlockId = computed(() => {
+  const ids = localConfig.value.UserBlockRules.map(r => r.Id)
+  return ids.length > 0 ? Math.max(...ids) + 1 : 1
 })
+
+function cloneRules(list = []) {
+  return list.map(rule => ({ ...rule }))
+}
+
+function showAutoReplaceHint() {
+  errorMsg.value = '检测到中文逗号 "，"，已自动替换为英文逗号'
+  setTimeout(() => {
+    if (errorMsg.value === '检测到中文逗号 "，"，已自动替换为英文逗号') {
+      errorMsg.value = ''
+    }
+  }, 3000)
+}
+
+function setupCommaNormalization(ruleRef) {
+  watch(() => ruleRef.value.Value, (newVal) => {
+    if (newVal && newVal.includes('，')) {
+      showAutoReplaceHint()
+      ruleRef.value.Value = newVal.replace(/，/g, ',')
+    }
+  })
+}
+
+setupCommaNormalization(newRule)
+setupCommaNormalization(newUserBlockRule)
 
 onMounted(async () => {
   await loadConfig()
   wsStore.subscribeInterceptLogs()
+})
+
+onUnmounted(() => {
+  wsStore.unsubscribeInterceptLogs()
 })
 
 async function loadConfig() {
@@ -70,7 +93,8 @@ async function loadConfig() {
     const cfg = await wsStore.loadConfig()
     localConfig.value = {
       AccessEnable: cfg.AccessEnable ?? false,
-      AccessRules: cfg.AccessRules ?? []
+      AccessRules: cloneRules(cfg.AccessRules ?? []),
+      UserBlockRules: cloneRules(cfg.UserBlockRules ?? [])
     }
     originalConfigStr.value = JSON.stringify(localConfig.value)
   } catch (e) {
@@ -85,11 +109,12 @@ async function saveConfig() {
   errorMsg.value = ''
   successMsg.value = ''
   try {
-    const current = wsStore.config
+    const current = wsStore.config ?? {}
     const merged = {
       ...current,
       AccessEnable: localConfig.value.AccessEnable,
-      AccessRules: localConfig.value.AccessRules
+      AccessRules: cloneRules(localConfig.value.AccessRules),
+      UserBlockRules: cloneRules(localConfig.value.UserBlockRules)
     }
     await wsStore.saveConfig(merged)
     originalConfigStr.value = JSON.stringify(localConfig.value)
@@ -103,7 +128,7 @@ async function saveConfig() {
 }
 
 function addRule() {
-  if (!newRule.value.Value) return
+  if (!newRule.value.Value.trim()) return
   const cleanValue = newRule.value.Value.split(',').map(v => v.trim()).filter(Boolean).join(',')
   localConfig.value.AccessRules.push({
     Id: nextRuleId.value,
@@ -115,6 +140,21 @@ function addRule() {
 
 function removeRule(index) {
   localConfig.value.AccessRules.splice(index, 1)
+}
+
+function addUserBlock() {
+  if (!newUserBlockRule.value.Value.trim()) return
+  const cleanValue = newUserBlockRule.value.Value.split(',').map(v => v.trim()).filter(Boolean).join(',')
+  localConfig.value.UserBlockRules.push({
+    Id: nextUserBlockId.value,
+    ...newUserBlockRule.value,
+    Value: cleanValue
+  })
+  newUserBlockRule.value = { Value: '', Enable: true, Remarks: '' }
+}
+
+function removeUserBlock(index) {
+  localConfig.value.UserBlockRules.splice(index, 1)
 }
 
 function getRuleTypeLabel(type) {
@@ -199,6 +239,42 @@ function formatTime(timeStr) {
           <span>启用</span>
         </label>
         <button class="btn btn-add" @click="addRule">添加规则</button>
+      </div>
+    </div>
+
+    <!-- 来源 IP 用户拦截 -->
+    <div class="section">
+      <h3>用户拦截</h3>
+      <p class="hint">按访问者来源 IP 精确拦截。保存后会立即断开该 IP 当前连接，并拦截后续新请求。</p>
+
+      <table class="data-table" v-if="localConfig.UserBlockRules.length > 0">
+        <thead>
+          <tr>
+            <th>启用</th>
+            <th>来源 IP</th>
+            <th>备注</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="(rule, i) in localConfig.UserBlockRules" :key="rule.Id">
+            <td><input type="checkbox" v-model="rule.Enable" /></td>
+            <td class="value-cell">{{ rule.Value }}</td>
+            <td>{{ rule.Remarks }}</td>
+            <td><button class="btn btn-danger-sm" @click="removeUserBlock(i)">删除</button></td>
+          </tr>
+        </tbody>
+      </table>
+      <p v-else class="empty-hint">暂无用户拦截规则</p>
+
+      <div class="add-row">
+        <input v-model="newUserBlockRule.Value" placeholder="eg. 192.168.1.10, 10.0.0.5" class="input flex-fill" spellcheck="false" />
+        <input v-model="newUserBlockRule.Remarks" placeholder="备注（可选）" class="input" />
+        <label class="checkbox-label">
+          <input type="checkbox" v-model="newUserBlockRule.Enable" />
+          <span>启用</span>
+        </label>
+        <button class="btn btn-add" @click="addUserBlock">添加来源 IP</button>
       </div>
     </div>
 
