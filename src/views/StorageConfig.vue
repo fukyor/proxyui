@@ -75,7 +75,10 @@ async function saveConfig() {
 <template>
   <div class="storage-config">
     <div class="page-header">
-      <h2>存储配置</h2>
+      <div class="pm-head-copy">
+        <h2>存储配置</h2>
+        <p class="pm-page-subtitle">MinIO 对象存储连接信息与 Body 抓取开关。</p>
+      </div>
       <div class="header-actions">
         <button class="btn btn-secondary" @click="loadConfig" :disabled="loading">
           {{ loading ? '加载中...' : '刷新' }}
@@ -425,5 +428,39 @@ input:checked + .slider:before {
   margin: 0;
   font-size: 0.82rem;
   color: #666;
+}
+
+.storage-config {
+  display: flex;
+  max-width: none;
+  min-height: 100%;
+  flex-direction: column;
+  gap: 18px;
+  padding: 28px 32px;
+  background: var(--pm-bg);
+}
+
+.page-header,
+.section {
+  margin-bottom: 0;
+}
+
+.section-title-row {
+  margin-bottom: 18px;
+}
+
+.info-section {
+  background: #291c0f !important;
+  border-color: rgba(255, 132, 0, 0.25) !important;
+}
+
+.info-text {
+  color: var(--pm-primary) !important;
+}
+
+@media (max-width: 760px) {
+  .storage-config {
+    padding: 20px;
+  }
 }
 </style>

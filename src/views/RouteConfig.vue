@@ -171,7 +171,10 @@ function getRuleTypeLabel(type) {
 <template>
   <div class="route-config">
     <div class="page-header">
-      <h2>路由配置</h2>
+      <div class="pm-head-copy">
+        <h2>路由配置</h2>
+        <p class="pm-page-subtitle">RouteEnable、ProxyNodes 与 Routes 的可视化维护。</p>
+      </div>
       <div class="header-actions">
         <button class="btn btn-secondary" @click="loadConfig" :disabled="loading">
           {{ loading ? '加载中...' : '刷新' }}
@@ -532,5 +535,56 @@ input:checked + .slider:before {
   background: rgba(95, 173, 138, 0.15);
   color: #5fad8a;
   border: 1px solid #5fad8a;
+}
+
+.route-config {
+  display: flex;
+  max-width: none;
+  min-height: 100%;
+  flex-direction: column;
+  gap: 18px;
+  padding: 28px 32px;
+  background: var(--pm-bg);
+}
+
+.page-header {
+  margin-bottom: 0;
+}
+
+.section {
+  margin-bottom: 0;
+}
+
+.data-table {
+  overflow: hidden;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--pm-border);
+  border-radius: var(--pm-radius);
+  background: #111111;
+}
+
+.data-table th,
+.data-table td {
+  height: 42px;
+}
+
+.add-row {
+  gap: 10px;
+}
+
+.input-wide,
+.flex-fill {
+  min-width: min(100%, 260px);
+}
+
+.toggle-label {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 760px) {
+  .route-config {
+    padding: 20px;
+  }
 }
 </style>

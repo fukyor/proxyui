@@ -603,4 +603,46 @@ input:checked + .slider:before {
   color: #5fad8a;
   border: 1px solid #5fad8a;
 }
+
+.access-control {
+  display: flex;
+  max-width: none;
+  min-height: 100%;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.page-actions,
+.section {
+  margin-bottom: 0;
+}
+
+.section {
+  background: var(--pm-surface);
+}
+
+.data-table {
+  overflow: hidden;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--pm-border);
+  border-radius: var(--pm-radius);
+  background: #111111;
+}
+
+.data-table th,
+.data-table td {
+  height: 42px;
+}
+
+.add-row,
+.toggle-label {
+  flex-wrap: wrap;
+}
+
+.log-container {
+  border: 1px solid var(--pm-border);
+  border-radius: var(--pm-radius);
+  background: #111111;
+}
 </style>

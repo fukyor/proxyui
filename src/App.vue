@@ -9,9 +9,9 @@ import { RouterView } from 'vue-router'
 <style>
 body {
   margin: 0;
-  background-color: #1a1a1a;
-  color: #cba376;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  background-color: #111111;
+  color: #ffffff;
+  font-family: var(--pm-font);
 }
 
 #app {

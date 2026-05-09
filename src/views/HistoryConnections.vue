@@ -1,11 +1,20 @@
 <template>
   <div class="connections history">
-    <h1>历史记录</h1>
+    <header class="pm-page-head connections-head">
+      <div class="pm-head-copy">
+        <h1>历史连接</h1>
+        <p class="pm-page-subtitle">已关闭连接归档，便于追溯 Host、URL、协议与流量。</p>
+      </div>
+      <div class="history-total">
+        <span>已归档连接</span>
+        <strong>{{ filteredHistoryConnections.length }}</strong>
+      </div>
+    </header>
 
     <!-- 统计信息栏 -->
     <div class="stats-bar">
       <div class="stat-item">
-        <span class="label">已归档历史连接:</span>
+        <span class="label">已归档历史连接</span>
         <span class="value closed">{{ filteredHistoryConnections.length }}</span>
       </div>
     </div>
@@ -15,7 +24,7 @@
       <input
         v-model="searchQuery"
         type="text"
-        placeholder="搜索 Host 或 URL..."
+        placeholder="搜索 Host / URL"
         class="search-input"
       />
       <button @click="handleClearHistory" class="btn-clear-history">清空历史</button>
@@ -135,7 +144,7 @@ function formatBytes(bytes) {
   if (!bytes) return '0 B'
   const k = 1024
   const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  const i = Math.max(0, Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1))
   return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i]
 }
 
@@ -400,5 +409,83 @@ h1 {
 
 .conn-scroller::-webkit-scrollbar-thumb:hover {
   background: #555;
+}
+
+.connections {
+  gap: 20px;
+  padding: 28px 32px;
+  background: var(--pm-bg);
+}
+
+.connections-head {
+  flex-shrink: 0;
+}
+
+.history-total {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  color: var(--pm-muted);
+}
+
+.history-total strong {
+  color: var(--pm-text);
+  font-family: var(--pm-mono);
+  font-size: 26px;
+}
+
+.stats-bar {
+  display: none;
+}
+
+.actions-bar {
+  margin-bottom: 0;
+}
+
+.search-input {
+  max-width: 420px;
+}
+
+.table-section {
+  border: 1px solid var(--pm-border);
+  background: var(--pm-surface);
+}
+
+.conn-scroller {
+  background: #111111;
+}
+
+.conn-grid-row {
+  min-width: 900px;
+  grid-template-columns: 90px 110px minmax(150px, 1.4fr) minmax(220px, 2.2fr) 120px 100px 100px;
+  color: var(--pm-text);
+}
+
+.thead-row {
+  background: #2b2b2b;
+  border-bottom: 0;
+}
+
+.th,
+.td {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.url-cell {
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .connections {
+    padding: 20px;
+  }
+
+  .history-total {
+    align-items: flex-start;
+  }
 }
 </style>

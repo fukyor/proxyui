@@ -1,19 +1,24 @@
 <template>
   <div class="mitm">
-    <h1>MITM</h1>
+    <header class="pm-page-head mitm-head">
+      <div class="pm-head-copy">
+        <h1>MITM 抓包</h1>
+        <p class="pm-page-subtitle">HTTPS 中间人抓包记录，支持搜索、排序、展开 Header 与下载 Body。</p>
+      </div>
+    </header>
 
     <!-- 统计栏 -->
     <div class="stats-section">
       <div class="stat-item">
-        <span class="label">总记录:</span>
+        <span class="label">总记录</span>
         <span class="value">{{ totalRecords }}</span>
       </div>
       <div class="stat-item">
-        <span class="label">成功:</span>
+        <span class="label">成功</span>
         <span class="value success">{{ successRecords }}</span>
       </div>
       <div class="stat-item">
-        <span class="label">错误:</span>
+        <span class="label">错误</span>
         <span class="value error">{{ errorRecords }}</span>
       </div>
     </div>
@@ -24,7 +29,7 @@
         <input
           type="text"
           v-model="searchQuery"
-          placeholder="搜索 URL、Host、方法、状态码..."
+          placeholder="搜索 URL / Host / Method / Status"
           class="search-input"
         />
       </div>
@@ -361,7 +366,7 @@ function formatBytes(bytes) {
   if (!bytes || bytes <= 0) return '0 B'
   const k = 1024
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1)
+  const i = Math.max(0, Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1))
   return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i]
 }
 
@@ -930,6 +935,113 @@ h1 {
   .mitm-grid-row > div:nth-child(3),
   .mitm-grid-row > div:nth-child(9) {
     display: none;
+  }
+}
+
+.mitm {
+  gap: 18px;
+  padding: 28px 32px;
+  background: var(--pm-bg);
+}
+
+.mitm-head {
+  flex-shrink: 0;
+}
+
+.stats-section {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 0;
+}
+
+.controls {
+  margin-bottom: 0;
+}
+
+.search-group {
+  max-width: 430px;
+}
+
+.table-container {
+  border: 1px solid var(--pm-border);
+  background: var(--pm-surface);
+}
+
+.mitm-scroller {
+  background: #111111;
+}
+
+.mitm-grid-row {
+  min-width: 1120px;
+  grid-template-columns: 76px 88px 74px 92px 90px minmax(140px, 1.2fr) minmax(240px, 2fr) 86px 86px 86px 86px;
+  color: var(--pm-text);
+}
+
+.thead-row {
+  background: #2b2b2b;
+  border-bottom: 0;
+}
+
+.th,
+.td {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.url-cell {
+  white-space: nowrap;
+}
+
+.detail-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 14px;
+  background: #111111;
+  border-bottom: 1px solid var(--pm-border);
+  color: var(--pm-text);
+}
+
+.detail-section {
+  margin-bottom: 0;
+}
+
+.detail-section h4 {
+  color: var(--pm-text);
+}
+
+.header-content,
+.detail-section pre {
+  border: 1px solid var(--pm-border);
+  background: #0d0d0d;
+}
+
+.body-download-section {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.download-buttons {
+  flex-direction: column;
+}
+
+.error-section {
+  grid-column: 2;
+}
+
+@media (max-width: 900px) {
+  .mitm {
+    padding: 20px;
+  }
+
+  .detail-content {
+    grid-template-columns: 1fr;
+  }
+
+  .body-download-section,
+  .error-section {
+    grid-column: auto;
+    grid-row: auto;
   }
 }
 </style>

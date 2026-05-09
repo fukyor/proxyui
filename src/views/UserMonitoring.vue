@@ -3,15 +3,15 @@
     <!-- 统计信息栏 -->
     <div class="stats-bar">
       <div class="stat-item">
-        <span class="label">总用户:</span>
+        <span class="label">总用户</span>
         <span class="value">{{ wsStore.userTrafficList.length }}</span>
       </div>
       <div class="stat-item">
-        <span class="label">在线:</span>
+        <span class="label">在线</span>
         <span class="value online">{{ onlineCount }}</span>
       </div>
       <div class="stat-item">
-        <span class="label">离线:</span>
+        <span class="label">离线</span>
         <span class="value offline">{{ wsStore.userTrafficList.length - onlineCount }}</span>
       </div>
     </div>
@@ -21,7 +21,7 @@
       <input
         v-model="searchQuery"
         type="text"
-        placeholder="搜索 IP 地址..."
+        placeholder="搜索 IP 地址"
         class="search-input"
       />
       <button
@@ -285,10 +285,10 @@ async function handleBlock(ip) {
 
 // 格式化字节数
 function formatBytes(bytes) {
-  if (bytes === 0) return '0 B'
+  if (!bytes || bytes <= 0) return '0 B'
   const k = 1024
   const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  const i = Math.max(0, Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1))
   return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i]
 }
 
@@ -582,5 +582,59 @@ onUnmounted(() => wsStore.unsubscribeUserTraffic())
 
 .scroller::-webkit-scrollbar-thumb:hover {
   background: #555;
+}
+
+.user-monitoring {
+  gap: 16px;
+}
+
+.stats-bar {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 0;
+}
+
+.actions-bar {
+  margin-bottom: 0;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.table-section {
+  border: 1px solid var(--pm-border);
+  background: var(--pm-surface);
+}
+
+.scroller {
+  background: #111111;
+}
+
+.grid-row {
+  min-width: 920px;
+  grid-template-columns: 110px minmax(190px, 1.5fr) 130px 130px 130px 180px;
+  color: var(--pm-text);
+}
+
+.thead-row {
+  background: #2b2b2b;
+  border-bottom: 0;
+}
+
+.td,
+.th {
+  min-width: 0;
+}
+
+.parent-row {
+  background: #111111;
+}
+
+.child-row .td {
+  background: #171717;
+}
+
+@media (max-width: 760px) {
+  .stats-bar {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

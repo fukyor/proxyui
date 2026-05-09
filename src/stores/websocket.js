@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { fetchConfig, updateConfig } from '@/api/api.js'
+import { fetchConfig, fetchStats, updateConfig } from '@/api/api.js'
 
 
 export const useWebSocketStore = defineStore('websocket', () => {
@@ -25,6 +25,7 @@ export const useWebSocketStore = defineStore('websocket', () => {
   const logs = ref([])            // 日志列表
   const mitmExchanges = ref([])   // MITM 交换记录
   const interceptLogs = ref([])   // 拦截日志列表
+  const interceptCount = ref(0)    // 后端进程内累计拦截次数
   const userTrafficList = ref([])  // 用户流量列表
   const apiUrl = ref('')           // API 基础地址（用于下载等 HTTP 请求）
 
@@ -67,6 +68,9 @@ export const useWebSocketStore = defineStore('websocket', () => {
       isConnected.value = true
       console.log('WebSocket 连接成功')
       subscribe()
+      loadStats().catch(error => {
+        console.error('加载统计数据失败:', error)
+      })
     }
 
     socket.value.onmessage = (event) => {
@@ -169,7 +173,7 @@ export const useWebSocketStore = defineStore('websocket', () => {
         handleMITMExchangeBatch(msg.data)
         break
       case 'intercept_log_batch':
-        handleInterceptLogBatch(msg.data)
+        handleInterceptLogBatch(msg)
         break
       case 'user_traffic':
         userTrafficList.value = msg.data
@@ -187,7 +191,16 @@ export const useWebSocketStore = defineStore('websocket', () => {
     mitmSubscribers.value.forEach(cb => cb())
   }
 
-  function handleInterceptLogBatch(dataArray) {
+  function handleInterceptLogBatch(payload) {
+    const dataArray = Array.isArray(payload) ? payload : payload?.data
+    const nextCount = Array.isArray(payload)
+      ? undefined
+      : payload?.interceptCount
+
+    if (typeof nextCount === 'number') {
+      interceptCount.value = nextCount
+    }
+
     if (!dataArray || dataArray.length === 0) return
     const updated = interceptLogs.value.concat(dataArray)
     interceptLogs.value = updated.length > MAX_INTERCEPT_LOGS
@@ -459,12 +472,24 @@ export const useWebSocketStore = defineStore('websocket', () => {
   }
 
   /**
+   * 从服务器加载进程级统计数据
+   */
+  async function loadStats() {
+    if (!apiUrl.value) {
+      return { interceptCount: interceptCount.value }
+    }
+    const stats = await fetchStats(apiUrl.value)
+    interceptCount.value = Number(stats?.interceptCount) || 0
+    return stats
+  }
+
+  /**
    * 保存配置到服务器
    * @param {Object} newConfig - 新配置
    */
   async function saveConfig(newConfig) {
     await updateConfig(apiUrl.value, newConfig)
-    config.value = newConfig
+    return loadConfig()
   }
 
   // ==================== Return ====================
@@ -479,6 +504,7 @@ export const useWebSocketStore = defineStore('websocket', () => {
     logs,
     mitmExchanges,
     interceptLogs,
+    interceptCount,
     apiUrl,
     connect,
     disconnect,
@@ -503,6 +529,7 @@ export const useWebSocketStore = defineStore('websocket', () => {
     cleanOfflineUsers,
     config,
     loadConfig,
+    loadStats,
     saveConfig
   }
 })

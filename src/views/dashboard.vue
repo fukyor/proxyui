@@ -1,218 +1,108 @@
 <script setup>
+import { computed, ref } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
+import {
+  Database,
+  History,
+  LayoutDashboard,
+  LockKeyhole,
+  Network,
+  RefreshCw,
+  Route as RouteIcon,
+  Settings,
+  ShieldAlert,
+  Sparkles,
+  Terminal
+} from 'lucide-vue-next'
+import { useWebSocketStore } from '@/stores/websocket'
 
 const route = useRoute()
+const wsStore = useWebSocketStore()
+const syncingConfig = ref(false)
 
-// 检查菜单项是否激活
-function isSecurityPolicyActive() {
-  return route.path.startsWith('/dashboard/security-policy')
+const connectedAddress = computed(() => {
+  return wsStore.apiUrl ? wsStore.apiUrl.replace(/^https?:\/\//, '') : '未知地址'
+})
+
+const coreStatusText = computed(() => {
+  return wsStore.isConnected ? `已连接 · ${connectedAddress.value}` : '未连接'
+})
+
+const navItems = [
+  { to: '/dashboard/overview', label: '概览', icon: LayoutDashboard },
+  { to: '/dashboard/connections', label: '详细连接', icon: Network },
+  { to: '/dashboard/history-connections', label: '历史连接', icon: History },
+  { to: '/dashboard/logs', label: '日志', icon: Terminal },
+  { to: '/dashboard/mitm', label: 'MITM 抓包', icon: ShieldAlert },
+  { to: '/dashboard/route-config', label: '路由配置', icon: RouteIcon },
+  { to: '/dashboard/security-policy/access-control', label: '安全策略', icon: LockKeyhole, group: 'security' },
+  { to: '/dashboard/storage-config', label: '存储配置', icon: Database },
+  { to: '/dashboard/advanced-config', label: '高级设置', icon: Settings }
+]
+
+function isItemActive(item) {
+  if (item.group === 'security') {
+    return route.path.startsWith('/dashboard/security-policy')
+  }
+  return route.path === item.to
+}
+
+async function syncConfig() {
+  syncingConfig.value = true
+  try {
+    await wsStore.loadConfig()
+  } finally {
+    syncingConfig.value = false
+  }
 }
 </script>
 
 <template>
   <div class="dashboard-container">
-    <aside class="sidebar">
-      <!-- Logo or Header -->
-      <div class="sidebar-header">
-        <svg
-          width="40"
-          height="40"
-          viewBox="0 0 100 100"
-          fill="none"
-          stroke="#cba376"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path d="M25 75 L25 40 L15 20 L40 30 L60 30 L85 20 L75 40 L75 75 Q50 85 25 75 Z" />
-          <circle cx="38" cy="48" r="3" />
-          <circle cx="62" cy="48" r="3" />
-          <path d="M45 60 Q50 63 55 60" />
-        </svg>
+    <aside class="sidebar" aria-label="主导航">
+      <div class="sidebar-brand">
+        <div class="brand-mark">
+          <Sparkles :size="19" stroke-width="3" />
+        </div>
+        <span>PROXY MAN</span>
       </div>
 
       <nav class="nav-menu">
-        <RouterLink to="/dashboard/overview" class="nav-item" active-class="active">
-          <!-- Icon for Overview -->
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <rect x="3" y="3" width="7" height="7"></rect>
-            <rect x="14" y="3" width="7" height="7"></rect>
-            <rect x="14" y="14" width="7" height="7"></rect>
-            <rect x="3" y="14" width="7" height="7"></rect>
-          </svg>
-          <span>概览</span>
-        </RouterLink>
-
-        <RouterLink to="/dashboard/connections" class="nav-item" active-class="active">
-          <!-- Icon for Connections -->
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <circle cx="6" cy="6" r="3"></circle>
-            <circle cx="18" cy="6" r="3"></circle>
-            <circle cx="6" cy="18" r="3"></circle>
-            <circle cx="18" cy="18" r="3"></circle>
-            <line x1="9" y1="6" x2="15" y2="6"></line>
-            <line x1="6" y1="9" x2="6" y2="15"></line>
-            <line x1="18" y1="9" x2="18" y2="15"></line>
-            <line x1="9" y1="18" x2="15" y2="18"></line>
-          </svg>
-          <span>详细连接</span>
-        </RouterLink>
-
-        <RouterLink to="/dashboard/history-connections" class="nav-item" active-class="active">
-          <!-- Icon for History Connections -->
-           <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <circle cx="12" cy="12" r="10"></circle>
-            <polyline points="12 6 12 12 16 14"></polyline>
-          </svg>
-          <span>历史连接</span>
-        </RouterLink>
-
-        <RouterLink to="/dashboard/logs" class="nav-item" active-class="active">
-          <!-- Icon for Logs -->
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-            <polyline points="14 2 14 8 20 8"></polyline>
-            <line x1="16" y1="13" x2="8" y2="13"></line>
-            <line x1="16" y1="17" x2="8" y2="17"></line>
-            <polyline points="10 9 9 9 8 9"></polyline>
-          </svg>
-          <span>日志</span>
-        </RouterLink>
-
-        <RouterLink to="/dashboard/mitm" class="nav-item" active-class="active">
-          <!-- Icon for MITM -->
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-            <path d="M12 8v4"></path>
-            <path d="M12 16h.01"></path>
-          </svg>
-          <span>MITM</span>
-        </RouterLink>
-
-        <RouterLink to="/dashboard/route-config" class="nav-item" active-class="active">
-          <!-- Icon for Route Config -->
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <circle cx="12" cy="12" r="3"></circle>
-            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
-            <path d="M4.93 4.93a10 10 0 0 0 0 14.14"></path>
-            <path d="M12 2v2"></path>
-            <path d="M12 20v2"></path>
-            <path d="M2 12h2"></path>
-            <path d="M20 12h2"></path>
-          </svg>
-          <span>路由配置</span>
-        </RouterLink>
-
-        <RouterLink to="/dashboard/security-policy" class="nav-item" active-class="active" :class="{ active: isSecurityPolicyActive() }">
-          <!-- Icon for Security Policy（盾牌） -->
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-            <line x1="9" y1="12" x2="11" y2="14"></line>
-            <line x1="15" y1="10" x2="11" y2="14"></line>
-          </svg>
-          <span>安全策略</span>
-        </RouterLink>
-
-        <RouterLink to="/dashboard/storage-config" class="nav-item" active-class="active">
-          <!-- Icon for Storage Config（数据库桶）-->
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
-            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
-            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
-          </svg>
-          <span>存储配置</span>
-        </RouterLink>
-
-        <RouterLink to="/dashboard/advanced-config" class="nav-item" active-class="active">
-          <!-- Icon for Advanced Config -->
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <circle cx="12" cy="12" r="3"></circle>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-          </svg>
-          <span>高级设置</span>
+        <RouterLink
+          v-for="item in navItems"
+          :key="item.to"
+          :to="item.to"
+          class="nav-item"
+          :class="{ active: isItemActive(item) }"
+        >
+          <component :is="item.icon" class="nav-icon" :size="24" stroke-width="2.25" />
+          <span>{{ item.label }}</span>
         </RouterLink>
       </nav>
+
+      <div class="sidebar-footer">
+        <div class="core-card">
+          <div class="core-status-row">
+            <div class="core-copy">
+              <div class="footer-title">代理核心</div>
+              <div class="footer-url">{{ coreStatusText }}</div>
+            </div>
+            <span class="core-badge" :class="{ offline: !wsStore.isConnected }">
+              <span class="core-badge-dot"></span>
+              <span>{{ wsStore.isConnected ? '在线' : '离线' }}</span>
+            </span>
+          </div>
+          <button
+            class="core-refresh-button"
+            :disabled="syncingConfig"
+            aria-label="刷新配置"
+            @click="syncConfig"
+          >
+            <RefreshCw :size="14" :class="{ spinning: syncingConfig }" />
+            <span>刷新配置</span>
+          </button>
+        </div>
+      </div>
     </aside>
 
     <main class="main-content">
@@ -223,60 +113,276 @@ function isSecurityPolicyActive() {
 
 <style scoped>
 .dashboard-container {
+  --dashboard-scale: 1;
+  --dashboard-width-scale: 1;
+  --dashboard-height-scale: 1;
   display: flex;
-  height: 100vh;
-  width: 100%;
-  background-color: #1a1a1a;
-  color: #cba376;
+  width: calc(100% * var(--dashboard-width-scale));
+  min-height: calc(100vh * var(--dashboard-height-scale));
+  background: var(--pm-bg);
+  color: var(--pm-text);
+  zoom: var(--dashboard-scale);
+}
+
+@media (min-resolution: 1.2dppx) and (max-resolution: 1.3dppx) {
+  .dashboard-container {
+    --dashboard-scale: 1.1;
+    --dashboard-width-scale: 1;
+    --dashboard-height-scale: 1;
+  }
 }
 
 .sidebar {
-  width: 200px;
-  background-color: #222;
+  position: sticky;
+  top: 0;
   display: flex;
+  width: 264px;
+  height: calc(100vh * var(--dashboard-height-scale));
+  flex: 0 0 264px;
   flex-direction: column;
-  padding: 20px 10px;
-  border-right: 1px solid #333;
+  background: var(--pm-sidebar);
+  box-shadow: inset -1px 0 0 var(--pm-border);
+  overflow: hidden;
 }
 
-.sidebar-header {
+.sidebar-brand {
   display: flex;
+  height: 88px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  padding: 0 32px;
+  border-bottom: 1px solid var(--pm-border);
+  color: var(--pm-primary);
+  font-family: var(--pm-mono);
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.brand-mark {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
   justify-content: center;
-  margin-bottom: 40px;
-  margin-top: 20px;
+  border-radius: 50%;
+  background: var(--pm-primary);
+  color: #111111;
 }
 
 .nav-menu {
   display: flex;
+  flex: 1;
+  min-height: 0;
   flex-direction: column;
-  gap: 10px;
+  gap: 0;
+  overflow-y: auto;
+  padding: 24px 0;
 }
 
 .nav-item {
   display: flex;
+  width: calc(100% - 16px);
+  min-height: 48px;
   align-items: center;
-  gap: 12px;
-  padding: 10px 15px;
-  color: #888;
+  gap: 16px;
+  margin-left: 16px;
+  padding: 0 16px;
+  border-radius: 999px;
+  color: var(--pm-text);
   text-decoration: none;
-  border-radius: 8px;
-  transition: all 0.3s;
+  transition:
+    background 0.18s ease,
+    color 0.18s ease;
 }
 
 .nav-item:hover {
-  background-color: rgba(203, 163, 118, 0.1);
-  color: #cba376;
+  background: #222226;
 }
 
 .nav-item.active {
-  background-color: rgba(203, 163, 118, 0.15);
-  color: #cba376;
-  font-weight: 500;
+  background: #2b2b31;
+  color: var(--pm-text);
+}
+
+.nav-item.active .nav-icon {
+  color: var(--pm-primary);
+}
+
+.nav-icon {
+  flex: 0 0 auto;
+  color: currentColor;
+}
+
+.nav-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.spinning {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.sidebar-footer {
+  display: flex;
+  min-height: 132px;
+  flex: 0 0 132px;
+  align-items: flex-start;
+  padding: 12px 16px;
+  background: var(--pm-sidebar);
+  box-shadow: inset 0 1px 0 var(--pm-border);
+  color: var(--pm-muted);
+}
+
+.core-card {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--pm-border);
+  border-radius: 8px;
+  background: #111111;
+}
+
+.core-status-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.core-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.footer-title {
+  color: var(--pm-text);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.footer-url {
+  max-width: 166px;
+  overflow: hidden;
+  color: var(--pm-muted);
+  font-size: 11px;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.core-badge {
+  display: inline-flex;
+  min-height: 26px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  background: #222924;
+  padding: 5px 8px;
+  color: var(--pm-success);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.core-badge.offline {
+  background: #24100b;
+  color: var(--pm-danger);
+}
+
+.core-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.core-refresh-button {
+  display: inline-flex;
+  width: 100%;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid #ff9a2a;
+  border-radius: 6px;
+  background: var(--pm-primary);
+  color: #111111;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    opacity 0.18s ease;
+}
+
+.core-refresh-button:hover:not(:disabled) {
+  border-color: var(--pm-primary-hover);
+  background: var(--pm-primary-hover);
+}
+
+.core-refresh-button:disabled {
+  opacity: 0.72;
+  cursor: wait;
 }
 
 .main-content {
-  flex-grow: 1;
-  padding: 20px;
-  overflow-y: auto;
+  flex: 1;
+  min-width: 0;
+  height: calc(100vh * var(--dashboard-height-scale));
+  overflow: auto;
+  background: var(--pm-bg);
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    width: 84px;
+    flex-basis: 84px;
+  }
+
+  .sidebar-brand {
+    justify-content: center;
+    padding: 0;
+  }
+
+  .sidebar-brand span,
+  .nav-item span,
+  .sidebar-footer {
+    display: none;
+  }
+
+  .nav-menu {
+    padding: 20px 12px;
+  }
+
+  .nav-item {
+    width: 100%;
+    justify-content: center;
+    margin-left: 0;
+    padding: 0;
+  }
 }
 </style>

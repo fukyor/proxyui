@@ -1,23 +1,32 @@
 <template>
   <div class="connections">
-    <h1>详细连接</h1>
+    <header class="pm-page-head connections-head">
+      <div class="pm-head-copy">
+        <h1>详细连接</h1>
+        <p class="pm-page-subtitle">当前代理连接快照，支持搜索、排序、展开隧道和主动断开。</p>
+      </div>
+      <div class="pm-status-pill">
+        <span class="pm-status-dot"></span>
+        connection 运行中
+      </div>
+    </header>
 
     <!-- 统计信息栏 -->
     <div class="stats-bar">
       <div class="stat-item">
-        <span class="label">隧道数:</span>
+        <span class="label">隧道数</span>
         <span class="value">{{ tunnelCount }}</span>
       </div>
       <div class="stat-item">
-        <span class="label">总连接:</span>
+        <span class="label">总连接</span>
         <span class="value">{{ totalConnections }}</span>
       </div>
       <div class="stat-item">
-        <span class="label">活跃中:</span>
+        <span class="label">活跃中</span>
         <span class="value active">{{ activeConnections }}</span>
       </div>
       <div class="stat-item">
-        <span class="label">已关闭:</span>
+        <span class="label">已关闭</span>
         <span class="value closed">{{ closedConnections }}</span>
       </div>
     </div>
@@ -27,7 +36,7 @@
       <input
         v-model="searchQuery"
         type="text"
-        placeholder="搜索 Host 或 URL..."
+        placeholder="搜索 Host / URL"
         class="search-input"
       />
       <button @click="handleCloseAll" class="btn-close-all">关闭所有连接</button>
@@ -312,10 +321,10 @@ function handleCloseOne(id) {
 
 // 格式化字节数
 function formatBytes(bytes) {
-  if (bytes === 0) return '0 B'
+  if (!bytes || bytes <= 0) return '0 B'
   const k = 1024
   const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  const i = Math.max(0, Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1))
   return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i]
 }
 
@@ -666,5 +675,73 @@ h1 {
 .btn-close-conn:hover {
   background: rgba(220, 53, 69, 0.2);
   color: #ff4d4d;
+}
+
+.connections {
+  gap: 20px;
+  padding: 28px 32px;
+  background: var(--pm-bg);
+}
+
+.connections-head {
+  flex-shrink: 0;
+}
+
+.stats-bar {
+  margin-bottom: 0;
+}
+
+.actions-bar {
+  margin-bottom: 0;
+}
+
+.search-input {
+  max-width: 420px;
+}
+
+.table-section {
+  border: 1px solid var(--pm-border);
+  background: var(--pm-surface);
+}
+
+.conn-scroller {
+  background: #111111;
+}
+
+.conn-grid-row {
+  min-width: 860px;
+  grid-template-columns: 90px 100px minmax(120px, 1.1fr) minmax(180px, 2fr) 110px 95px 95px 56px;
+  color: var(--pm-text);
+}
+
+.thead-row {
+  background: #2b2b2b;
+  border-bottom: 0;
+}
+
+.th,
+.td {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.url-cell {
+  white-space: nowrap;
+}
+
+.parent-row {
+  background: #111111;
+}
+
+.child-row .td {
+  background: #171717;
+}
+
+@media (max-width: 760px) {
+  .connections {
+    padding: 20px;
+  }
 }
 </style>

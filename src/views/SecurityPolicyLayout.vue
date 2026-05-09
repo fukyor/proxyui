@@ -21,6 +21,7 @@ const activeTab = computed(() => {
     <!-- 模块标题 -->
     <div class="module-header">
       <h2>安全策略</h2>
+      <p>访问控制、拦截日志和用户来源流量统一入口。</p>
     </div>
 
     <!-- 二级导航 -->
@@ -48,32 +49,39 @@ const activeTab = computed(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  color: #cba376;
+  color: var(--pm-text);
+  padding: 28px 32px;
+  background: var(--pm-bg);
 }
 
 .module-header {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .module-header h2 {
-  font-size: 1.6rem;
+  font-size: 26px;
   font-weight: 600;
   margin: 0;
-  color: #cba376;
+  color: var(--pm-text);
+}
+
+.module-header p {
+  margin: 8px 0 0;
+  color: var(--pm-muted);
 }
 
 /* 二级导航 */
 .sub-nav {
   display: flex;
   gap: 8px;
-  margin-bottom: 24px;
-  border-bottom: 1px solid #333;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--pm-border);
   padding-bottom: 0;
 }
 
 .sub-nav-item {
-  padding: 10px 20px;
-  color: #888;
+  padding: 10px 4px;
+  color: var(--pm-muted);
   text-decoration: none;
   border-bottom: 2px solid transparent;
   transition: all 0.3s;
@@ -83,19 +91,25 @@ const activeTab = computed(() => {
 }
 
 .sub-nav-item:hover {
-  color: #cba376;
-  background-color: rgba(203, 163, 118, 0.05);
+  color: var(--pm-text);
+  background-color: transparent;
 }
 
 .sub-nav-item.active {
-  color: #cba376;
-  border-bottom-color: #cba376;
-  font-weight: 500;
+  color: var(--pm-primary);
+  border-bottom-color: var(--pm-primary);
+  font-weight: 800;
 }
 
 /* 子页面内容区域 */
 .sub-content {
   flex: 1;
   overflow-y: auto;
+}
+
+@media (max-width: 760px) {
+  .security-policy-layout {
+    padding: 20px;
+  }
 }
 </style>

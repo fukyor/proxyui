@@ -1,11 +1,16 @@
 <template>
   <div class="logs">
-    <h1>日志</h1>
+    <header class="pm-page-head logs-head">
+      <div class="pm-head-copy">
+        <h1>日志</h1>
+        <p class="pm-page-subtitle">代理运行日志，支持按级别订阅和自动滚动。</p>
+      </div>
+    </header>
 
     <!-- 控制栏 -->
     <div class="controls">
       <div class="filter-group">
-        <label for="logLevel">日志级别:</label>
+        <label for="logLevel">日志级别</label>
         <select id="logLevel" v-model="selectedLevel" @change="handleLevelChange">
           <option value="DEBUG">DEBUG</option>
           <option value="INFO">INFO</option>
@@ -335,5 +340,66 @@ h1 {
 
 .logs-scroller::-webkit-scrollbar-thumb:hover {
   background: #555;
+}
+
+.logs {
+  gap: 20px;
+  padding: 28px 32px;
+  background: var(--pm-bg);
+}
+
+.logs-head {
+  flex-shrink: 0;
+}
+
+.controls {
+  margin-bottom: 0;
+}
+
+.filter-group select {
+  min-width: 120px;
+}
+
+.logs-outer {
+  border: 1px solid var(--pm-border);
+  background: var(--pm-surface);
+}
+
+.logs-scroller {
+  background: #111111;
+  padding: 0;
+}
+
+.log-entry {
+  display: grid;
+  grid-template-columns: 120px 80px 90px minmax(0, 1fr);
+  gap: 12px;
+  height: 40px;
+  padding: 0 16px;
+}
+
+.log-time,
+.log-level,
+.log-session,
+.log-message {
+  min-width: 0;
+}
+
+.log-message {
+  color: var(--pm-text);
+}
+
+@media (max-width: 760px) {
+  .logs {
+    padding: 20px;
+  }
+
+  .log-entry {
+    grid-template-columns: 80px 64px minmax(0, 1fr);
+  }
+
+  .log-session {
+    display: none;
+  }
 }
 </style>

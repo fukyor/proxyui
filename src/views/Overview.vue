@@ -1,189 +1,408 @@
 <template>
   <div class="overview">
-    <h1>概览</h1>
-
-    <!-- 流量图表区域 -->
-    <div class="traffic-section">
-      <h2>实时流量</h2>
-      <div class="traffic-stats">
-        <div class="stat-item">
-          <span class="label">上传速率:</span>
-          <span class="value">{{ formatBytes(currentUpload) }}/s</span>
+    <section class="overview-top">
+      <div class="metric-board">
+        <div class="metric-row">
+          <article v-for="metric in topMetricRow" :key="metric.label" class="metric-card">
+            <span>{{ metric.label }}</span>
+            <strong>{{ metric.value }}</strong>
+            <em>{{ metric.source }}</em>
+          </article>
         </div>
-        <div class="stat-item">
-          <span class="label">下载速率:</span>
-          <span class="value">{{ formatBytes(currentDownload) }}/s</span>
-        </div>
-        <div class="stat-item">
-          <span class="label">总上传:</span>
-          <span class="value">{{ formatBytes(totalUpload) }}</span>
-        </div>
-        <div class="stat-item">
-          <span class="label">总下载:</span>
-          <span class="value">{{ formatBytes(totalDownload) }}</span>
+        <div class="metric-row">
+          <article v-for="metric in bottomMetricRow" :key="metric.label" class="metric-card">
+            <span>{{ metric.label }}</span>
+            <strong>{{ metric.value }}</strong>
+            <em>{{ metric.source }}</em>
+          </article>
         </div>
       </div>
-      <div class="chart-container">
-        <canvas ref="chartCanvas"></canvas>
-      </div>
-    </div>
 
-    <!-- 连接列表区域 -->
-    <div class="connections-section">
-      <div class="section-header">
-        <h2>活动连接 ({{ totalActiveCount }})</h2>
-        <button @click="handleCloseAll" class="btn-close-all">关闭所有连接</button>
-      </div>
-
-      <!-- CSS Grid + 虚拟滚动 -->
-      <div class="conn-scroller" ref="scrollerRef">
-        <!-- sticky 吸顶表头 -->
-        <div class="conn-grid-row thead-row">
-          <div class="th">ID</div>
-          <div class="th">方法</div>
-          <div class="th">Host</div>
-          <div class="th">URL</div>
-          <div class="th">协议</div>
-          <div class="th">上传</div>
-          <div class="th">下载</div>
-        </div>
-
-        <!-- 空数据提示 -->
-        <div v-if="connections.length === 0" class="no-data">暂无活跃连接</div>
-
-        <!-- 虚拟高度容器 -->
-        <div :style="{ position: 'relative', height: totalSize + 'px' }">
-          <div
-            v-for="virtualRow in virtualRows"
-            :key="virtualRow.key"
-            :ref="(el) => { if (el) virtualizer.measureElement(el) }"
-            :data-index="virtualRow.index"
-            :style="{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              transform: `translateY(${virtualRow.start}px)`
-            }"
-          >
-            <div class="conn-grid-row data-row">
-              <div class="td">{{ connections[virtualRow.index].id }}</div>
-              <div class="td">{{ connections[virtualRow.index].method }}</div>
-              <div class="td">{{ connections[virtualRow.index].host }}</div>
-              <div class="td url-cell" :title="connections[virtualRow.index].url">{{ connections[virtualRow.index].url }}</div>
-              <div class="td">{{ connections[virtualRow.index].protocol }}</div>
-              <div class="td">{{ formatBytes(connections[virtualRow.index].up || 0) }}</div>
-              <div class="td">{{ formatBytes(connections[virtualRow.index].down || 0) }}</div>
+      <article class="policy-card">
+        <div class="policy-head">
+          <div class="policy-title-group">
+            <div class="policy-icon-wrap">
+              <ShieldCheck :size="18" />
             </div>
+            <h2>安全策略</h2>
+          </div>
+          <span
+            class="policy-switch-dot"
+            :class="{ active: isAccessEnabled }"
+            :title="accessStatusText"
+            :aria-label="accessStatusText"
+          ></span>
+        </div>
+
+        <div class="policy-status-list">
+          <div>
+            <span>域名拦截规则</span>
+            <strong>{{ enabledAccessRuleCount }} 条</strong>
+          </div>
+          <div>
+            <span>用户封禁 IP</span>
+            <strong>{{ blockedIpCount }} 个</strong>
+          </div>
+          <div>
+            <span>拦截次数</span>
+            <strong class="accent">{{ wsStore.interceptCount }} 次</strong>
           </div>
         </div>
-      </div>
 
-      <!-- 查看更多 -->
-      <div v-if="totalActiveCount > OVERVIEW_MAX_DISPLAY" class="view-more">
-        <span>显示前 {{ OVERVIEW_MAX_DISPLAY }} 条，共 {{ totalActiveCount }} 条活跃连接</span>
-        <router-link to="/dashboard/connections" class="btn-view-all">查看全部连接</router-link>
-      </div>
-    </div>
+        <div class="policy-divider"></div>
+
+        <RouterLink class="policy-action" to="/dashboard/security-policy/access-control">
+          查看策略
+        </RouterLink>
+      </article>
+
+      <article class="policy-card route-policy-card">
+        <div class="policy-head">
+          <div class="policy-title-group">
+            <div class="policy-icon-wrap route-icon-wrap">
+              <RouteIcon :size="18" />
+            </div>
+            <h2>路由策略</h2>
+          </div>
+          <span
+            class="policy-switch-dot"
+            :class="{ active: isRouteEnabled }"
+            :title="routeStatusText"
+            :aria-label="routeStatusText"
+          ></span>
+        </div>
+
+        <div class="policy-status-list">
+          <div>
+            <span>域名后缀规则</span>
+            <strong>{{ domainSuffixRouteRuleCount }} 条</strong>
+          </div>
+          <div>
+            <span>域名关键词规则</span>
+            <strong>{{ domainKeywordRouteRuleCount }} 条</strong>
+          </div>
+          <div>
+            <span>IP 精确规则</span>
+            <strong class="accent route-accent">{{ ipRouteRuleCount }} 条</strong>
+          </div>
+        </div>
+
+        <div class="policy-divider"></div>
+
+        <RouterLink class="policy-action" to="/dashboard/route-config">
+          查看路由
+        </RouterLink>
+      </article>
+
+      <article class="user-card">
+        <div class="user-head">
+          <div>
+            <h2>用户流量</h2>
+            <p>按 IP 聚合 · 在线优先</p>
+          </div>
+          <span>{{ onlineUserCount }} 在线</span>
+        </div>
+
+        <div class="user-preview-area">
+          <div class="user-preview-list">
+            <div class="user-preview-grid">
+              <div v-for="user in userPreviewRows" :key="user.key" class="user-preview-row">
+                <div>
+                  <strong>{{ user.ip }}</strong>
+                  <small>{{ user.hostLabel }}</small>
+                </div>
+                <em>{{ user.totalLabel }}</em>
+              </div>
+            </div>
+            <div class="fake-scroll-track"></div>
+            <div class="fake-scroll-thumb"></div>
+          </div>
+          <RouterLink class="user-action" to="/dashboard/security-policy/user-monitoring">
+            进入用户监控
+          </RouterLink>
+        </div>
+      </article>
+    </section>
+
+    <section class="overview-main-stack">
+      <article class="traffic-panel">
+        <div class="overview-section-head">
+          <div>
+            <h2>实时流量</h2>
+            <p>最近 60 秒上传 / 下载速率</p>
+          </div>
+          <div class="chart-legend">
+            <span class="upload">上传</span>
+            <span class="download">下载</span>
+          </div>
+        </div>
+        <div class="chart-box">
+          <canvas ref="chartCanvas"></canvas>
+        </div>
+      </article>
+
+      <article class="connections-panel">
+        <div class="overview-section-head">
+          <div>
+            <h2>活动连接 ({{ totalActiveCount }})</h2>
+            <p>Overview 仅展示前 50 条活动子连接</p>
+          </div>
+          <div class="connection-actions">
+            <button class="connection-close" @click="handleCloseAll">关闭所有连接</button>
+            <RouterLink class="connection-view" to="/dashboard/connections">查看全部连接</RouterLink>
+          </div>
+        </div>
+
+        <div class="connection-table">
+          <div class="connection-row connection-header">
+            <span>ID</span>
+            <span>方法</span>
+            <span>Host</span>
+            <span>URL</span>
+            <span>协议</span>
+            <span>上传</span>
+            <span>下载</span>
+          </div>
+          <div v-if="connections.length === 0" class="connection-empty">暂无活动连接</div>
+          <div
+            v-for="(conn, index) in connections"
+            v-else
+            :key="conn.id"
+            class="connection-row"
+            :class="{ muted: index % 2 === 1 }"
+          >
+            <span>{{ conn.id }}</span>
+            <span class="method-cell" :class="`method-${String(conn.method || '').toLowerCase()}`">
+              {{ conn.method || '未知' }}
+            </span>
+            <span :title="conn.host">{{ conn.host || '-' }}</span>
+            <span :title="conn.url">{{ conn.url || '-' }}</span>
+            <span>{{ conn.protocol || '-' }}</span>
+            <span>{{ formatBytes(conn.up || 0) }}</span>
+            <span>{{ formatBytes(conn.down || 0) }}</span>
+          </div>
+        </div>
+      </article>
+    </section>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useVirtualizer } from '@tanstack/vue-virtual'
-import { useWebSocketStore } from '@/stores/websocket'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { RouterLink } from 'vue-router'
 import { Chart, registerables } from 'chart.js'
+import { Route as RouteIcon, ShieldCheck } from 'lucide-vue-next'
+import { useWebSocketStore } from '@/stores/websocket'
 
-// 注册 Chart.js 组件
 Chart.register(...registerables)
 
 const wsStore = useWebSocketStore()
-
 const OVERVIEW_MAX_DISPLAY = 50
+const TRAFFIC_CHART_POINTS = 60
+const TRAFFIC_CHART_IDLE_MAX = 1024
+const TRAFFIC_CHART_MIN_ACTIVE_MAX = 512
+const TRAFFIC_CHART_TINY_POINT_LIMIT = 1024
+const TRAFFIC_CHART_HEADROOM = 1.4
 
-// 响应式数据
 const chartCanvas = ref(null)
 const currentUpload = ref(0)
 const currentDownload = ref(0)
-const connections = ref([])
 const totalUpload = ref(0)
 const totalDownload = ref(0)
 const totalActiveCount = ref(0)
-const scrollerRef = ref(null)
+const connections = ref([])
 
 let chart = null
 let unsubscribeTraffic = null
 let unsubscribeConnections = null
 
-// 虚拟滚动器
-const virtualizer = useVirtualizer(
-  computed(() => ({
-    count: connections.value.length,
-    getScrollElement: () => scrollerRef.value,
-    estimateSize: () => 60,
-    overscan: 10,
-    getItemKey: (index) => connections.value[index].id,
+const enabledAccessRuleCount = computed(() => {
+  const rules = wsStore.config?.AccessRules ?? []
+  return rules.filter(rule => rule.Enable).length
+})
+
+const blockedIpSet = computed(() => {
+  const rules = wsStore.config?.UserBlockRules ?? []
+  const set = new Set()
+  rules
+    .filter(rule => rule.Enable)
+    .forEach(rule => {
+      String(rule.Value || '')
+        .split(',')
+        .map(value => value.trim())
+        .filter(Boolean)
+        .forEach(ip => set.add(ip))
+    })
+  return set
+})
+
+const blockedIpCount = computed(() => blockedIpSet.value.size)
+
+const accessStatusText = computed(() => {
+  if (!wsStore.config) return '配置未加载'
+  return isAccessEnabled.value ? '访问控制已启用' : '访问控制未启用'
+})
+
+const isAccessEnabled = computed(() => {
+  return Boolean(wsStore.config?.AccessEnable)
+})
+
+const enabledRouteRules = computed(() => {
+  const rules = wsStore.config?.Routes ?? []
+  return rules.filter(rule => rule.Enable)
+})
+
+const domainSuffixRouteRuleCount = computed(() => {
+  return enabledRouteRules.value.filter(rule => rule.Type === 'DomainSuffix').length
+})
+
+const domainKeywordRouteRuleCount = computed(() => {
+  return enabledRouteRules.value.filter(rule => rule.Type === 'DomainKeyword').length
+})
+
+const ipRouteRuleCount = computed(() => {
+  return enabledRouteRules.value.filter(rule => rule.Type === 'IP').length
+})
+
+const routeStatusText = computed(() => {
+  if (!wsStore.config) return '配置未加载'
+  return isRouteEnabled.value ? '规则路由已启用' : '规则路由未启用'
+})
+
+const isRouteEnabled = computed(() => {
+  return Boolean(wsStore.config?.RouteEnable)
+})
+
+const onlineUserCount = computed(() => {
+  return wsStore.userTrafficList.filter(item => item.online).length
+})
+
+const topUsers = computed(() => {
+  return [...wsStore.userTrafficList]
+    .map(item => {
+      const hosts = Array.isArray(item.hosts) ? item.hosts : []
+      const topHost = [...hosts].sort((a, b) => {
+        return ((b.up || 0) + (b.down || 0)) - ((a.up || 0) + (a.down || 0))
+      })[0]
+      return {
+        ip: item.ip,
+        online: Boolean(item.online),
+        totalTraffic: (item.totalUp || 0) + (item.totalDown || 0),
+        hostLabel: topHost?.host || `${hosts.length} 个 Host`
+      }
+    })
+    .sort((a, b) => {
+      if (a.online !== b.online) return a.online ? -1 : 1
+      return b.totalTraffic - a.totalTraffic
+    })
+    .slice(0, 4)
+})
+
+const userPreviewRows = computed(() => {
+  const rows = topUsers.value.map(user => ({
+    key: user.ip,
+    ip: user.ip,
+    hostLabel: user.hostLabel,
+    totalLabel: formatBytes(user.totalTraffic)
   }))
-)
 
-const virtualRows = computed(() => virtualizer.value.getVirtualItems())
-const totalSize = computed(() => virtualizer.value.getTotalSize())
+  while (rows.length < 4) {
+    const index = rows.length + 1
+    rows.push({
+      key: `empty-${index}`,
+      ip: '-',
+      hostLabel: '暂无数据',
+      totalLabel: '0 B'
+    })
+  }
+  return rows
+})
 
-// 初始化图表
+const topMetricRow = computed(() => [
+  { label: '总上传', value: formatBytes(totalUpload.value), source: '来自 traffic.totalUp' },
+  { label: '上传速率', value: `${formatBytes(currentUpload.value)}/s`, source: '来自 traffic.up' }
+])
+
+const bottomMetricRow = computed(() => [
+  { label: '下载速率', value: `${formatBytes(currentDownload.value)}/s`, source: '来自 traffic.down' },
+  { label: '总下载', value: formatBytes(totalDownload.value), source: '来自 traffic.totalDown' }
+])
+
 function initChart() {
   if (!chartCanvas.value) return
 
-  const ctx = chartCanvas.value.getContext('2d')
-
-  chart = new Chart(ctx, {
+  chart = new Chart(chartCanvas.value.getContext('2d'), {
     type: 'line',
     data: {
-      labels: Array(60).fill(''),
+      labels: Array(TRAFFIC_CHART_POINTS).fill(''),
       datasets: [
         {
-          label: '上传 (B/s)',
-          data: Array(60).fill(0),
-          borderColor: 'rgb(75, 192, 192)',
-          backgroundColor: 'rgba(75, 192, 192, 0.2)',
-          tension: 0.4,
-          fill: true
+          label: '上传',
+          data: Array(TRAFFIC_CHART_POINTS).fill(0),
+          borderColor: '#ff8400',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          pointRadius: getTrafficPointRadius,
+          pointHoverRadius: 4,
+          tension: 0.35,
+          fill: false
         },
         {
-          label: '下载 (B/s)',
-          data: Array(60).fill(0),
-          borderColor: 'rgb(255, 99, 132)',
-          backgroundColor: 'rgba(255, 99, 132, 0.2)',
-          tension: 0.4,
-          fill: true
+          label: '下载',
+          data: Array(TRAFFIC_CHART_POINTS).fill(0),
+          borderColor: '#b2b2ff',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          pointRadius: getTrafficPointRadius,
+          pointHoverRadius: 4,
+          tension: 0.35,
+          fill: false
         }
       ]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      animation: {
-        duration: 0
+      animation: { duration: 0 },
+      interaction: {
+        intersect: false,
+        mode: 'index'
+      },
+      layout: {
+        padding: {
+          top: 4,
+          right: 8,
+          bottom: 0,
+          left: 0
+        }
       },
       scales: {
         y: {
           beginAtZero: true,
+          suggestedMax: TRAFFIC_CHART_IDLE_MAX,
+          grid: { color: 'rgba(46, 46, 46, 0.55)' },
+          border: { color: '#2e2e2e' },
           ticks: {
-            callback: (value) => formatBytes(value)
+            color: '#b8b9b6',
+            font: {
+              family: 'JetBrains Mono',
+              size: 10
+            },
+            maxTicksLimit: 5,
+            callback: value => formatBytes(value)
           }
         },
         x: {
-          display: false
+          display: false,
+          grid: { display: false },
+          border: { color: '#2e2e2e' }
         }
       },
       plugins: {
-        legend: {
-          position: 'top'
-        },
+        legend: { display: false },
         tooltip: {
           callbacks: {
-            label: (context) => {
-              return `${context.dataset.label}: ${formatBytes(context.parsed.y)}`
-            }
+            label: context => `${context.dataset.label}: ${formatBytes(context.parsed.y)}/s`
           }
         }
       }
@@ -191,262 +410,693 @@ function initChart() {
   })
 }
 
-// 更新图表数据
-function updateChart(data) {
-  if (!chart) return
-
-  currentUpload.value = data.up
-  currentDownload.value = data.down
-  totalUpload.value = data.totalUp || 0
-  totalDownload.value = data.totalDown || 0
-
-  chart.data.datasets[0].data.push(data.up)
-  if (chart.data.datasets[0].data.length > 60) {
-    chart.data.datasets[0].data.shift()
-  }
-
-  chart.data.datasets[1].data.push(data.down)
-  if (chart.data.datasets[1].data.length > 60) {
-    chart.data.datasets[1].data.shift()
-  }
-
-  chart.update()
+function getTrafficPointRadius(context) {
+  const value = Number(context.raw) || 0
+  if (value <= 0) return 0
+  return value < TRAFFIC_CHART_TINY_POINT_LIMIT ? 2.5 : 0
 }
 
-// 更新连接列表（只显示活跃状态的子节点连接，最多 50 条）
-function updateConnections(data) {
-  const activeChildren = data.filter(conn =>
-    conn.parentId !== 0 && conn.status === 'Active'
-  )
+function getTrafficSuggestedMax() {
+  if (!chart) return TRAFFIC_CHART_IDLE_MAX
+
+  const peak = chart.data.datasets.reduce((maxValue, dataset) => {
+    const datasetPeak = dataset.data.reduce((datasetMax, value) => {
+      return Math.max(datasetMax, Number(value) || 0)
+    }, 0)
+    return Math.max(maxValue, datasetPeak)
+  }, 0)
+
+  if (peak <= 0) return TRAFFIC_CHART_IDLE_MAX
+  return Math.max(TRAFFIC_CHART_MIN_ACTIVE_MAX, Math.ceil(peak * TRAFFIC_CHART_HEADROOM))
+}
+
+function updateChart(data = {}) {
+  const up = Number(data.up) || 0
+  const down = Number(data.down) || 0
+
+  currentUpload.value = up
+  currentDownload.value = down
+  totalUpload.value = data.totalUp == null ? totalUpload.value : Number(data.totalUp) || 0
+  totalDownload.value = data.totalDown == null ? totalDownload.value : Number(data.totalDown) || 0
+
+  if (!chart) return
+
+  chart.data.datasets[0].data.push(up)
+  chart.data.datasets[1].data.push(down)
+  chart.data.datasets.forEach(dataset => {
+    if (dataset.data.length > TRAFFIC_CHART_POINTS) dataset.data.shift()
+  })
+  chart.options.scales.y.suggestedMax = getTrafficSuggestedMax()
+  chart.update('none')
+}
+
+function updateConnections(data = []) {
+  const activeChildren = data.filter(conn => conn.parentId !== 0 && conn.status === 'Active')
   totalActiveCount.value = activeChildren.length
   connections.value = activeChildren.slice(0, OVERVIEW_MAX_DISPLAY)
 }
 
-// 关闭所有连接
 function handleCloseAll() {
   wsStore.closeAllConnections()
 }
 
-// 格式化字节数
 function formatBytes(bytes) {
-  if (!bytes || bytes <= 0) return '0 B'
+  const numericBytes = Number(bytes) || 0
+  if (numericBytes <= 0) return '0 B'
   const k = 1024
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1)
-  return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i]
+  const i = Math.max(0, Math.min(Math.floor(Math.log(numericBytes) / Math.log(k)), sizes.length - 1))
+  const value = numericBytes / Math.pow(k, i)
+  if (i === 0) return `${Math.round(value)} ${sizes[i]}`
+  const rounded = Number(value.toFixed(1))
+  return `${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)} ${sizes[i]}`
 }
 
-// 生命周期钩子
-onMounted(() => {
+onMounted(async () => {
   initChart()
 
-  unsubscribeTraffic = wsStore.subscribeTraffic((data) => {
-    updateChart(data)
-  })
+  unsubscribeTraffic = wsStore.subscribeTraffic(updateChart)
+  unsubscribeConnections = wsStore.subscribeConnections(updateConnections)
+  wsStore.subscribeInterceptLogs()
+  wsStore.subscribeUserTraffic()
 
-  unsubscribeConnections = wsStore.subscribeConnections((data) => {
-    updateConnections(data)
-  })
-
-  // 初始化数据（从 store 缓存读取）
+  if (wsStore.trafficHistory.length > 0) {
+    wsStore.trafficHistory.slice(-TRAFFIC_CHART_POINTS).forEach(updateChart)
+  }
   if (wsStore.connections.length > 0) {
     updateConnections(wsStore.connections)
   }
+  if (!wsStore.config) {
+    await wsStore.loadConfig()
+  }
+  wsStore.loadStats().catch(() => {})
 })
 
 onUnmounted(() => {
   if (unsubscribeTraffic) unsubscribeTraffic()
   if (unsubscribeConnections) unsubscribeConnections()
-  if (chart) {
-    chart.destroy()
-  }
+  wsStore.unsubscribeInterceptLogs()
+  wsStore.unsubscribeUserTraffic()
+  if (chart) chart.destroy()
 })
 </script>
 
 <style scoped>
 .overview {
-  padding: 20px;
+  position: relative;
+  display: flex;
+  min-height: 100vh;
+  height: 100%;
+  flex-direction: column;
+  gap: 20px;
+  padding: 28px 32px;
+  background: var(--background, #111111);
 }
 
-h1 {
-  color: #cba376;
-  margin-bottom: 20px;
+.overview-top {
+  display: grid;
+  height: 232px;
+  grid-template-columns: 1.5fr 1fr 1fr 1.1fr;
+  gap: 14px;
+  align-items: stretch;
 }
 
-h2 {
-  color: #cba376;
-  font-size: 1.2em;
-  margin-bottom: 15px;
+.overview-top > * {
+  height: 232px;
+  min-height: 0;
 }
 
-/* 流量部分 */
-.traffic-section {
-  background: #2a2a2a;
+.metric-board {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 12px;
+  background: transparent;
+}
+
+.metric-row {
+  display: grid;
+  min-height: 0;
+  flex: 1 1 0;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.metric-card,
+.policy-card,
+.user-card,
+.traffic-panel,
+.connections-panel {
+  border: 1px solid var(--border, #2e2e2e);
   border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 30px;
+  background: var(--card, #1a1a1a);
 }
 
-.traffic-stats {
+.metric-card {
   display: flex;
-  gap: 30px;
-  margin-bottom: 20px;
+  min-height: 0;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 16px;
 }
 
-.stat-item {
+.metric-card span,
+.metric-card em,
+.policy-head p,
+.policy-status-list span,
+.user-head p,
+.user-preview-row small,
+.overview-section-head p {
+  color: var(--muted-foreground, #b8b9b6);
+  font-family: var(--pm-font);
+  font-weight: 400;
+}
+
+.metric-card span {
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.metric-card strong {
+  overflow: hidden;
+  color: var(--foreground, #ffffff);
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 28px;
+  line-height: 1.33;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metric-card em {
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.4;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.policy-card,
+.user-card {
   display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: 16px;
+}
+
+.policy-card {
+  gap: 10px;
+}
+
+.user-card {
+  gap: 14px;
+}
+
+.policy-head,
+.user-head,
+.overview-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.policy-head {
+  justify-content: space-between;
+}
+
+.policy-title-group {
+  display: inline-flex;
+  min-width: 0;
   align-items: center;
   gap: 10px;
 }
 
-.stat-item .label {
-  color: #999;
-  font-size: 0.9em;
+.policy-switch-dot {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #ff3b30;
+  box-shadow: 0 0 0 4px rgba(255, 59, 48, 0.16), 0 0 14px rgba(255, 59, 48, 0.55);
 }
 
-.stat-item .value {
-  color: #cba376;
-  font-size: 1.1em;
-  font-weight: bold;
+.policy-switch-dot.active {
+  background: #7ed957;
+  box-shadow: 0 0 0 4px rgba(126, 217, 87, 0.18), 0 0 14px rgba(126, 217, 87, 0.58);
 }
 
-.chart-container {
-  height: 300px;
-  position: relative;
-}
-
-/* 连接列表部分 */
-.connections-section {
-  background: #2a2a2a;
+.policy-icon-wrap {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
   border-radius: 8px;
+  background: var(--color-warning, #291c0f);
+  color: var(--color-warning-foreground, #ff8400);
+}
+
+.route-icon-wrap {
+  background: var(--color-info, #222229);
+  color: var(--color-info-foreground, #b2b2ff);
+}
+
+.policy-head h2,
+.user-head h2,
+.overview-section-head h2 {
+  margin: 0;
+  color: var(--foreground, #ffffff);
+  font-size: 16px;
+  line-height: 1.44;
+  font-weight: 700;
+}
+
+.policy-head h2,
+.user-head h2 {
+  font-family: "JetBrains Mono", Consolas, monospace;
+}
+
+.overview-section-head h2 {
+  font-family: var(--pm-font);
+}
+
+.policy-head p,
+.user-head p,
+.overview-section-head p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.42;
+}
+
+.policy-status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.policy-status-list div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 19px;
+}
+
+.policy-status-list span,
+.policy-status-list strong {
+  font-size: 13px;
+  line-height: 1.46;
+}
+
+.policy-status-list strong {
+  color: var(--foreground, #ffffff);
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-weight: 700;
+}
+
+.policy-status-list .accent {
+  color: var(--color-warning-foreground, #ff8400);
+}
+
+.policy-status-list .route-accent {
+  color: var(--color-info-foreground, #b2b2ff);
+}
+
+.policy-divider {
+  height: 1px;
+  background: var(--border, #2e2e2e);
+}
+
+.policy-action,
+.user-action {
+  display: inline-flex;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--primary, #ff8400);
+  color: var(--primary-foreground, #111111);
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.policy-action {
+  width: 100%;
+}
+
+.user-head > span {
+  display: inline-flex;
+  min-height: 29px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--color-success, #222924);
+  color: var(--color-success-foreground, #b6ffce);
+  padding: 6px 10px;
+  font-family: var(--pm-font);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.42;
+}
+
+.user-preview-area {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.user-preview-list {
+  position: relative;
+  height: 82px;
+  flex: 0 0 82px;
+  overflow: hidden;
+  background: var(--card, #1a1a1a);
+}
+
+.user-preview-grid {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.user-preview-row {
+  display: flex;
+  height: 38px;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--border, #2e2e2e);
+  border-radius: 6px;
+  background: var(--background, #111111);
+  padding: 0 8px;
+}
+
+.user-preview-row div {
+  min-width: 0;
+}
+
+.user-preview-row strong,
+.user-preview-row small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-preview-row strong,
+.user-preview-row em {
+  color: var(--foreground, #ffffff);
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.31;
+  font-weight: 400;
+}
+
+.user-preview-row small {
+  margin-top: 2px;
+  font-size: 10px;
+  line-height: 1.27;
+}
+
+.user-preview-row em {
+  flex: 0 0 auto;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.user-action {
+  width: 100%;
+  flex: 0 0 auto;
+}
+
+.fake-scroll-track,
+.fake-scroll-thumb {
+  position: absolute;
+  right: 0;
+  width: 4px;
+  border-radius: 999px;
+}
+
+.fake-scroll-track {
+  top: 4px;
+  height: 74px;
+  background: var(--muted, #2e2e2e);
+}
+
+.fake-scroll-thumb {
+  top: 8px;
+  height: 28px;
+  background: var(--primary, #ff8400);
+}
+
+.overview-main-stack {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.traffic-panel {
+  display: flex;
+  height: 320px;
+  flex-direction: column;
+  gap: 16px;
   padding: 20px;
 }
 
-.section-header {
+.connections-panel {
   display: flex;
-  justify-content: space-between;
+  flex: 1;
+  min-height: 252px;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+}
+
+.chart-legend {
+  display: flex;
+  gap: 12px;
+}
+
+.chart-legend span {
+  font-family: var(--pm-font);
+  font-size: 12px;
+  line-height: 1.42;
+}
+
+.chart-legend .upload {
+  color: var(--primary, #ff8400);
+}
+
+.chart-legend .download {
+  color: var(--color-info-foreground, #b2b2ff);
+}
+
+.chart-box {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--border, #2e2e2e);
+  border-radius: 6px;
+  background: var(--background, #111111);
+  padding: 12px 14px;
+}
+
+.connection-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 10px;
+}
+
+.connection-close,
+.connection-view {
+  display: inline-flex;
+  height: 40px;
   align-items: center;
-  margin-bottom: 15px;
-}
-
-.btn-close-all {
-  background: #d9534f;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9em;
-  transition: background 0.3s;
-}
-
-.btn-close-all:hover {
-  background: #c9302c;
-}
-
-/* CSS Grid 行布局 */
-.conn-grid-row {
-  display: grid;
-  grid-template-columns: minmax(40px, 0.5fr) minmax(60px, 0.8fr) minmax(100px, 1.5fr) minmax(120px, 3fr) minmax(60px, 0.8fr) minmax(60px, 0.8fr) minmax(60px, 0.8fr);
-  align-items: flex-start;
-  color: #cba376;
-}
-
-/* 虚拟滚动容器 */
-.conn-scroller {
-  max-height: 400px;
-  overflow: auto;
-  overscroll-behavior: contain;
-  border-radius: 4px;
-}
-
-/* 表头行 */
-.thead-row {
-  background: #1a1a1a;
-  border-bottom: 2px solid #cba376;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-.th {
-  padding: 12px;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-family: var(--pm-font);
+  font-size: 13px;
   font-weight: 600;
-  white-space: nowrap;
-}
-
-/* 数据行 */
-.data-row {
-  border-bottom: 1px solid #3a3a3a;
-}
-
-.data-row:hover .td {
-  background: #333;
-}
-
-.td {
-  padding: 10px 12px;
-  overflow: hidden;
-  white-space: normal;
-  word-break: break-all;
-}
-
-.url-cell {
-  overflow: hidden;
-  white-space: normal;
-  word-break: break-all;
-}
-
-.no-data {
-  text-align: center;
-  color: #999;
-  padding: 40px;
-}
-
-/* 查看更多 */
-.view-more {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 12px;
-  padding: 10px 12px;
-  background: #1a1a1a;
-  border-radius: 4px;
-  font-size: 0.9em;
-  color: #999;
-}
-
-.btn-view-all {
-  color: #cba376;
+  line-height: 1.46;
   text-decoration: none;
-  padding: 6px 14px;
-  border: 1px solid #cba376;
-  border-radius: 4px;
-  font-size: 0.9em;
-  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.connection-close {
+  background: var(--secondary, #2e2e2e);
+  color: var(--secondary-foreground, #ffffff);
+}
+
+.connection-view {
+  background: var(--primary, #ff8400);
+  color: var(--primary-foreground, #111111);
+}
+
+.connection-table {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border, #2e2e2e);
+  border-radius: 6px;
+  background: var(--background, #111111);
+}
+
+.connection-row {
+  display: grid;
+  height: 48px;
+  grid-template-columns: 80px 100px 180px minmax(0, 1fr) 90px 100px 100px;
+  align-items: center;
+  border-bottom: 1px solid var(--border, #2e2e2e);
+  padding: 0 14px;
+  color: var(--foreground, #ffffff);
+  column-gap: 0;
+}
+
+.connection-header {
+  height: 34px;
+  background: var(--secondary, #2e2e2e);
+}
+
+.connection-row.muted {
+  background: var(--card, #1a1a1a);
+}
+
+.connection-row span {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--pm-font);
+  font-size: 13px;
+  line-height: 1.31;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.btn-view-all:hover {
-  background: rgba(203, 163, 118, 0.15);
+.connection-header span {
+  color: var(--muted-foreground, #b8b9b6);
+  font-size: 12px;
+  line-height: 1.42;
 }
 
-/* 滚动条样式 */
-.conn-scroller::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+.connection-row span:first-child,
+.connection-row span:nth-child(6),
+.connection-row span:nth-child(7),
+.method-cell {
+  font-family: "JetBrains Mono", Consolas, monospace;
 }
 
-.conn-scroller::-webkit-scrollbar-track {
-  background: #1a1a1a;
+.method-get {
+  color: var(--color-success-foreground, #b6ffce) !important;
 }
 
-.conn-scroller::-webkit-scrollbar-thumb {
-  background: #444;
-  border-radius: 4px;
+.method-connect,
+.method-post,
+.method-put,
+.method-patch {
+  color: var(--color-warning-foreground, #ff8400) !important;
 }
 
-.conn-scroller::-webkit-scrollbar-thumb:hover {
-  background: #555;
+.method-delete {
+  color: var(--destructive, #ff5c33) !important;
+}
+
+.connection-empty {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted-foreground, #b8b9b6);
+  font-family: var(--pm-font);
+  font-size: 13px;
+}
+
+@media (max-width: 1439px) {
+  .overview {
+    min-height: auto;
+    padding: 24px;
+  }
+
+  .overview-top {
+    height: auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .overview-top > * {
+    height: 232px;
+  }
+
+  .metric-board {
+    height: 232px;
+  }
+
+  .policy-card,
+  .user-card {
+    min-height: 232px;
+  }
+
+  .overview-main-stack {
+    height: auto;
+  }
+
+  .traffic-panel {
+    height: 320px;
+  }
+
+  .connections-panel {
+    height: auto;
+    min-height: 252px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .overview-top {
+    grid-template-columns: 1fr;
+  }
+
+  .connection-table {
+    overflow-x: auto;
+  }
+
+  .connection-row {
+    min-width: 1050px;
+  }
+}
+
+@media (max-width: 760px) {
+  .overview {
+    padding: 20px;
+  }
+
+  .metric-row {
+    grid-template-columns: 1fr;
+  }
+
+  .metric-board,
+  .user-preview-area {
+    height: auto;
+  }
+
+  .user-preview-area {
+    height: auto;
+  }
 }
 </style>

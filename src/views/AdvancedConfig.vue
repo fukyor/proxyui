@@ -151,7 +151,10 @@ async function saveConfig() {
 <template>
   <div class="advanced-config">
     <div class="page-header">
-      <h2>高级设置</h2>
+      <div class="pm-head-copy">
+        <h2>高级设置</h2>
+        <p class="pm-page-subtitle">代理端口、防环地址与代理行为开关。</p>
+      </div>
       <div class="header-actions">
         <button class="btn btn-secondary" @click="loadConfig" :disabled="loading">
           {{ loading ? '加载中...' : '刷新' }}
@@ -180,7 +183,7 @@ async function saveConfig() {
 
     <!-- ===== 新增：代理防环配置 ===== -->
     <div class="section">
-      <h3>代理防环</h3>
+      <h3>代理防环&证书配置</h3>
       <div class="public-ips-row">
         <span>公网 IP 列表</span>
         <input
@@ -444,5 +447,42 @@ input:checked + .slider:before {
   border-radius: 4px;
   font-size: 0.8rem;
   font-family: monospace;
+}
+
+.advanced-config {
+  display: flex;
+  max-width: none;
+  min-height: 100%;
+  flex-direction: column;
+  gap: 18px;
+  padding: 28px 32px;
+  background: var(--pm-bg);
+}
+
+.page-header,
+.section {
+  margin-bottom: 0;
+}
+
+.port-row,
+.public-ips-row,
+.toggle-label {
+  flex-wrap: wrap;
+}
+
+.input-ips {
+  min-width: min(100%, 320px);
+}
+
+.ip-tag {
+  background: rgba(255, 132, 0, 0.14);
+  color: var(--pm-primary);
+  border-radius: var(--pm-pill);
+}
+
+@media (max-width: 760px) {
+  .advanced-config {
+    padding: 20px;
+  }
 }
 </style>
