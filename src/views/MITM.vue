@@ -25,13 +25,61 @@
 
     <!-- 操作栏 -->
     <div class="controls">
-      <div class="search-group">
-        <input
-          type="text"
-          v-model="searchQuery"
-          placeholder="搜索 URL / Host / Method / Status"
-          class="search-input"
-        />
+      <div class="quick-filters">
+        <label class="quick-filter-field id-filter">
+          <Hash :size="16" />
+          <input
+            v-model="searchFilters.id"
+            type="text"
+            class="quick-filter-input"
+            placeholder="搜索会话ID / 父ID"
+          />
+          <button
+            v-if="hasTextFilter('id')"
+            type="button"
+            class="quick-filter-clear"
+            title="清除 ID 搜索"
+            @click="clearTextFilter('id')"
+          >
+            <X :size="14" />
+          </button>
+        </label>
+        <label class="quick-filter-field host-filter">
+          <Server :size="16" />
+          <input
+            v-model="searchFilters.host"
+            type="text"
+            class="quick-filter-input"
+            placeholder="搜索 Host，例如 google.com"
+          />
+          <button
+            v-if="hasTextFilter('host')"
+            type="button"
+            class="quick-filter-clear"
+            title="清除 Host 搜索"
+            @click="clearTextFilter('host')"
+          >
+            <X :size="14" />
+          </button>
+        </label>
+        <label class="quick-filter-field url-filter">
+          <LinkIcon :size="16" />
+          <input
+            v-model="searchFilters.url"
+            type="text"
+            class="quick-filter-input"
+            placeholder="搜索 URL，例如 /session_svr"
+          />
+          <button
+            v-if="hasTextFilter('url')"
+            type="button"
+            class="quick-filter-clear"
+            title="清除 URL 搜索"
+            @click="clearTextFilter('url')"
+          >
+            <X :size="14" />
+          </button>
+        </label>
       </div>
       <button @click="handleClearRecords" class="btn-clear">清除记录</button>
     </div>
@@ -54,8 +102,30 @@
           <div @click="sortBy('time')" :class="['th', getSortClass('time')]">
             时间 {{ getSortIcon('time') }}
           </div>
-          <div @click="sortBy('method')" :class="['th', getSortClass('method')]">
-            方法 {{ getSortIcon('method') }}
+          <div
+            class="th method-filterable"
+            :class="{ active: methodMenuOpen, 'has-filter': Boolean(methodFilter) }"
+            @click.stop="toggleMethodMenu"
+          >
+            <span>方法</span>
+            <span class="method-filter-label">{{ methodFilterLabel }}</span>
+            <ChevronUp v-if="methodMenuOpen" :size="14" />
+            <ChevronDown v-else :size="14" />
+
+            <div v-if="methodMenuOpen" class="method-filter-menu" @click.stop>
+              <button
+                v-for="option in mitmMethodOptions"
+                :key="option.value || 'all'"
+                type="button"
+                class="method-filter-option"
+                :class="{ active: methodFilter === option.value }"
+                @click.stop="selectMethodFilter(option.value)"
+              >
+                <Check v-if="methodFilter === option.value" :size="14" />
+                <span v-else class="method-check-placeholder"></span>
+                {{ option.label }}
+              </button>
+            </div>
           </div>
           <div @click="sortBy('host')" :class="['th', getSortClass('host')]">
             Host {{ getSortIcon('host') }}
@@ -77,7 +147,7 @@
 
         <!-- 空数据提示 -->
         <div v-if="filteredExchanges.length === 0" class="no-data">
-          暂无记录
+          {{ hasActiveFilters ? '未找到匹配的抓包记录' : '暂无记录' }}
         </div>
 
         <div :style="{ position: 'relative', height: totalSize + 'px' }">
@@ -236,12 +306,19 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
+import { Check, ChevronDown, ChevronUp, Hash, Link as LinkIcon, Server, X } from 'lucide-vue-next'
 import { useWebSocketStore } from '@/stores/websocket'
 
 const wsStore = useWebSocketStore()
 
 // 响应式数据
-const searchQuery = ref('')
+const searchFilters = ref({
+  id: '',
+  host: '',
+  url: ''
+})
+const methodFilter = ref('')
+const methodMenuOpen = ref(false)
 const sortField = ref('id')
 const sortOrder = ref('desc')
 const expandedRows = ref(new Set())
@@ -249,6 +326,18 @@ const expandedHeaders = ref(new Map())
 const scrollerRef = ref(null)
 
 let unsubscribeMITM = null
+
+const mitmMethodOptions = [
+  { value: '', label: '全部方法' },
+  { value: 'GET', label: 'GET' },
+  { value: 'POST', label: 'POST' },
+  { value: 'PUT', label: 'PUT' },
+  { value: 'DELETE', label: 'DELETE' },
+  { value: 'PATCH', label: 'PATCH' },
+  { value: 'HEAD', label: 'HEAD' },
+  { value: 'OPTIONS', label: 'OPTIONS' },
+  { value: 'CONNECT', label: 'CONNECT' }
+]
 
 // 统计数据
 const totalRecords = computed(() => wsStore.mitmExchanges.length)
@@ -259,20 +348,56 @@ const errorRecords = computed(() =>
   wsStore.mitmExchanges.filter(e => e.error || e.statusCode >= 400).length
 )
 
+function hasTextFilter(field) {
+  return Boolean(searchFilters.value[field]?.trim())
+}
+
+function clearTextFilter(field) {
+  searchFilters.value[field] = ''
+}
+
+function toggleMethodMenu() {
+  methodMenuOpen.value = !methodMenuOpen.value
+}
+
+function selectMethodFilter(method) {
+  methodFilter.value = method
+  methodMenuOpen.value = false
+}
+
+const methodFilterLabel = computed(() => methodFilter.value || '全部')
+
+const hasActiveFilters = computed(() => {
+  return Boolean(
+    searchFilters.value.id.trim() ||
+    searchFilters.value.host.trim() ||
+    searchFilters.value.url.trim() ||
+    methodFilter.value
+  )
+})
+
+function normalizeFilterValue(value) {
+  return String(value ?? '').toLowerCase()
+}
+
 // 搜索过滤
 const searchedExchanges = computed(() => {
-  if (!searchQuery.value.trim()) return wsStore.mitmExchanges
+  if (!hasActiveFilters.value) return wsStore.mitmExchanges
 
-  const query = searchQuery.value.toLowerCase()
+  const idQuery = searchFilters.value.id.trim().toLowerCase()
+  const hostQuery = searchFilters.value.host.trim().toLowerCase()
+  const urlQuery = searchFilters.value.url.trim().toLowerCase()
+  const selectedMethod = methodFilter.value.trim().toLowerCase()
+
   return wsStore.mitmExchanges.filter(exchange => {
-    return (
-      exchange.url.toLowerCase().includes(query) ||
-      exchange.host.toLowerCase().includes(query) ||
-      exchange.method.toLowerCase().includes(query) ||
-      (exchange.error && exchange.error.toLowerCase().includes(query)) ||
-      String(exchange.statusCode).includes(query) ||
-      String(exchange.sessionId).includes(query)
-    )
+    const matchesId = !idQuery ||
+      normalizeFilterValue(exchange.sessionId).includes(idQuery) ||
+      normalizeFilterValue(exchange.parentId).includes(idQuery)
+    const matchesHost = !hostQuery || normalizeFilterValue(exchange.host).includes(hostQuery)
+    const matchesUrl = !urlQuery || normalizeFilterValue(exchange.url).includes(urlQuery)
+    const matchesMethod = !selectedMethod || normalizeFilterValue(exchange.method) === selectedMethod
+
+    return matchesId && matchesHost && matchesUrl && matchesMethod
   })
 })
 
@@ -493,32 +618,88 @@ h1 {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #2a2a2a;
-  padding: 15px 20px;
-  border-radius: 8px;
+  gap: 15px;
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
   margin-bottom: 20px;
   flex-shrink: 0;
 }
 
-.search-group {
+.quick-filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  width: min(930px, 100%);
+}
+
+.quick-filter-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  min-width: 0;
+  padding: 0 12px;
+  border: 1px solid var(--pm-border);
+  border-radius: 999px;
+  background: var(--pm-bg);
+  color: var(--pm-primary);
+}
+
+.quick-filter-field.id-filter {
+  flex: 0 0 250px;
+}
+
+.quick-filter-field.host-filter {
+  flex: 0 0 280px;
+}
+
+.quick-filter-field.url-filter {
+  flex: 1 1 320px;
+}
+
+.quick-filter-input {
+  min-width: 0;
+  min-height: auto !important;
   flex: 1;
-  max-width: 500px;
-}
-
-.search-input {
-  width: 100%;
-  padding: 8px 12px;
-  background: #1a1a1a;
-  color: #cba376;
-  border: 1px solid #444;
-  border-radius: 4px;
-  font-size: 0.9em;
-  box-sizing: border-box;
-}
-
-.search-input:focus {
+  border: 0 !important;
+  border-radius: 0 !important;
   outline: none;
-  border-color: #cba376;
+  background: transparent !important;
+  color: var(--pm-text);
+  font: inherit;
+  font-size: 13px;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+
+.quick-filter-input:focus {
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.quick-filter-input::placeholder {
+  color: var(--pm-muted);
+}
+
+.quick-filter-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--pm-muted);
+  cursor: pointer;
+}
+
+.quick-filter-clear:hover {
+  background: rgba(255, 132, 0, 0.14);
+  color: var(--pm-primary);
 }
 
 .btn-clear {
@@ -563,6 +744,7 @@ h1 {
   top: 0;
   z-index: 10;
   width: 100%;
+  overflow: visible;
 }
 
 .th {
@@ -584,6 +766,77 @@ h1 {
 
 .th.sortable.active {
   color: #fff;
+}
+
+.method-filterable {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  overflow: visible !important;
+}
+
+.method-filterable:hover {
+  background: #252525;
+}
+
+.method-filterable.active,
+.method-filterable.has-filter {
+  color: var(--pm-primary);
+}
+
+.method-filter-label {
+  font-size: 12px;
+  color: currentColor;
+}
+
+.method-filter-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 10px;
+  z-index: 50;
+  width: 180px;
+  padding: 8px;
+  border: 1px solid var(--pm-primary);
+  border-radius: 8px;
+  background: var(--pm-surface);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+}
+
+.method-filter-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pm-text);
+  font-family: var(--pm-mono);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.method-filter-option:hover {
+  background: rgba(255, 132, 0, 0.14);
+  color: var(--pm-primary);
+}
+
+.method-filter-option.active {
+  background: rgba(255, 132, 0, 0.16);
+  color: var(--pm-primary);
+}
+
+.method-check-placeholder {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
 }
 
 /* 数据单元格 */
@@ -957,10 +1210,6 @@ h1 {
   margin-bottom: 0;
 }
 
-.search-group {
-  max-width: 430px;
-}
-
 .table-container {
   border: 1px solid var(--pm-border);
   background: var(--pm-surface);
@@ -979,6 +1228,7 @@ h1 {
 .thead-row {
   background: #2b2b2b;
   border-bottom: 0;
+  z-index: 30;
 }
 
 .th,

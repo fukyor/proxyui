@@ -33,12 +33,62 @@
 
     <!-- 搜索和操作栏 -->
     <div class="actions-bar">
-      <input
-        v-model="searchQuery"
-        type="text"
-        placeholder="搜索 Host / URL"
-        class="search-input"
-      />
+      <div class="quick-filters">
+        <label class="quick-filter-field id-filter">
+          <Hash :size="16" />
+          <input
+            v-model="columnFilters.id"
+            type="text"
+            class="quick-filter-input"
+            placeholder="搜索 ID，例如 553"
+          />
+          <button
+            v-if="hasColumnFilter('id')"
+            type="button"
+            class="quick-filter-clear"
+            title="清除 ID 搜索"
+            @click="clearColumnFilter('id')"
+          >
+            <X :size="14" />
+          </button>
+        </label>
+        <label class="quick-filter-field host-filter">
+          <Server :size="16" />
+          <input
+            v-model="columnFilters.host"
+            type="text"
+            class="quick-filter-input"
+            placeholder="搜索 Host，例如 google.com"
+          />
+          <button
+            v-if="hasColumnFilter('host')"
+            type="button"
+            class="quick-filter-clear"
+            title="清除 Host 搜索"
+            @click="clearColumnFilter('host')"
+          >
+            <X :size="14" />
+          </button>
+        </label>
+        <label class="quick-filter-field url-filter">
+          <LinkIcon :size="16" />
+          <input
+            v-model="columnFilters.url"
+            type="text"
+            class="quick-filter-input"
+            placeholder="搜索 URL，例如 /session_svr"
+          />
+          <button
+            v-if="hasColumnFilter('url')"
+            type="button"
+            class="quick-filter-clear"
+            title="清除 URL 搜索"
+            @click="clearColumnFilter('url')"
+          >
+            <X :size="14" />
+          </button>
+        </label>
+      </div>
       <button @click="handleCloseAll" class="btn-close-all">关闭所有连接</button>
     </div>
 
@@ -47,23 +97,37 @@
       <div class="conn-scroller" ref="scrollerRef">
         <!-- sticky 吸顶表头 -->
         <div class="conn-grid-row thead-row">
-          <div @click="handleSort('id')" class="th sortable">
+          <div class="th">
             <span class="expand-header-placeholder"></span>
             ID
-            <span class="sort-icon" v-if="sortBy === 'id'">{{ sortOrder === 'asc' ? '▲' : '▼' }}</span>
           </div>
-          <div @click="handleSort('method')" class="th sortable">
-            方法
-            <span class="sort-icon" v-if="sortBy === 'method'">{{ sortOrder === 'asc' ? '▲' : '▼' }}</span>
+          <div
+            class="th method-filterable"
+            :class="{ active: methodMenuOpen, 'has-filter': hasColumnFilter('method') }"
+            @click.stop="toggleMethodMenu"
+          >
+            <span>方法</span>
+            <span class="method-filter-label">{{ methodFilterLabel }}</span>
+            <ChevronUp v-if="methodMenuOpen" :size="14" />
+            <ChevronDown v-else :size="14" />
+
+            <div v-if="methodMenuOpen" class="method-filter-menu" @click.stop>
+              <button
+                v-for="option in connectionMethodOptions"
+                :key="option.value || 'all'"
+                type="button"
+                class="method-filter-option"
+                :class="{ active: columnFilters.method === option.value }"
+                @click.stop="selectMethodFilter(option.value)"
+              >
+                <Check v-if="columnFilters.method === option.value" :size="14" />
+                <span v-else class="method-check-placeholder"></span>
+                {{ option.label }}
+              </button>
+            </div>
           </div>
-          <div @click="handleSort('host')" class="th sortable">
-            Host
-            <span class="sort-icon" v-if="sortBy === 'host'">{{ sortOrder === 'asc' ? '▲' : '▼' }}</span>
-          </div>
-          <div @click="handleSort('url')" class="th sortable">
-            URL
-            <span class="sort-icon" v-if="sortBy === 'url'">{{ sortOrder === 'asc' ? '▲' : '▼' }}</span>
-          </div>
+          <div class="th">Host</div>
+          <div class="th">URL</div>
           <div @click="handleSort('protocol')" class="th sortable">
             协议
             <span class="sort-icon" v-if="sortBy === 'protocol'">{{ sortOrder === 'asc' ? '▲' : '▼' }}</span>
@@ -81,7 +145,7 @@
 
         <!-- 空数据提示 -->
         <div v-if="sortedConnections.length === 0" class="no-data">
-          {{ searchQuery ? '未找到匹配的连接' : '暂无活动连接' }}
+          {{ hasActiveColumnFilters ? '未找到匹配的连接' : '暂无活动连接' }}
         </div>
 
         <!-- 虚拟高度容器 -->
@@ -108,7 +172,7 @@
             >
               <div class="td">
                 <span
-                  v-if="sortedConnections[virtualRow.index].isParent && hasChildren(sortedConnections[virtualRow.index].id)"
+                  v-if="sortedConnections[virtualRow.index].isParent && hasVisibleChildren(sortedConnections[virtualRow.index].id)"
                   @click.stop="toggleExpand(sortedConnections[virtualRow.index].id)"
                   class="expand-icon"
                 >
@@ -150,19 +214,41 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
+import { Check, ChevronDown, ChevronUp, Hash, Link as LinkIcon, Server, X } from 'lucide-vue-next'
 import { useWebSocketStore } from '@/stores/websocket'
 
 const wsStore = useWebSocketStore()
 
 // 响应式数据
 const flatConnections = ref([])
-const searchQuery = ref('')
 const sortBy = ref('id')
 const sortOrder = ref('desc')
 const expandedIds = ref(new Set())
 const scrollerRef = ref(null)
+const methodMenuOpen = ref(false)
+const columnFilters = ref({
+  id: '',
+  method: '',
+  host: '',
+  url: ''
+})
+
+const filterFields = ['id', 'method', 'host', 'url']
+const connectionMethodOptions = [
+  { value: '', label: '全部方法' },
+  { value: 'GET', label: 'GET' },
+  { value: 'POST', label: 'POST' },
+  { value: 'PUT', label: 'PUT' },
+  { value: 'DELETE', label: 'DELETE' },
+  { value: 'PATCH', label: 'PATCH' },
+  { value: 'HEAD', label: 'HEAD' },
+  { value: 'OPTIONS', label: 'OPTIONS' },
+  { value: 'CONNECT', label: 'CONNECT' },
+  { value: 'TUNNEL', label: 'TUNNEL' },
+  { value: 'Tcp-Keep-Alive', label: 'Tcp-Keep-Alive' }
+]
 
 let unsubscribeConnections = null
 
@@ -179,8 +265,8 @@ const childrenMap = computed(() => {
 })
 
 // 检查是否有子节点
-function hasChildren(id) {
-  return childrenMap.value[id] && childrenMap.value[id].length > 0
+function hasVisibleChildren(id) {
+  return getVisibleChildren(id).length > 0
 }
 
 // 切换展开状态（new Set() 强制触发响应式更新）
@@ -190,15 +276,56 @@ function toggleExpand(id) {
   expandedIds.value = new Set(set)
 }
 
-// 搜索时自动展开匹配的父节点
-function expandSearchResults() {
-  if (!searchQuery.value) return
-  const query = searchQuery.value.toLowerCase()
+function hasColumnFilter(field) {
+  return Boolean(columnFilters.value[field]?.trim())
+}
+
+function clearColumnFilter(field) {
+  columnFilters.value[field] = ''
+}
+
+function toggleMethodMenu() {
+  methodMenuOpen.value = !methodMenuOpen.value
+}
+
+function selectMethodFilter(method) {
+  columnFilters.value.method = method
+  methodMenuOpen.value = false
+}
+
+const methodFilterLabel = computed(() => columnFilters.value.method || '全部')
+
+const hasActiveColumnFilters = computed(() => {
+  return filterFields.some(field => hasColumnFilter(field))
+})
+
+function normalizeFilterValue(value) {
+  return String(value ?? '').toLowerCase()
+}
+
+function connectionMatchesFilters(conn) {
+  return filterFields.every(field => {
+    const query = columnFilters.value[field]?.trim().toLowerCase()
+    if (!query) return true
+    if (field === 'method') {
+      return normalizeFilterValue(conn.method) === query
+    }
+    return normalizeFilterValue(conn[field]).includes(query)
+  })
+}
+
+function getVisibleChildren(id) {
+  const children = childrenMap.value[id] || []
+  if (!hasActiveColumnFilters.value) return children
+  return children.filter(child => connectionMatchesFilters(child))
+}
+
+// 筛选命中子连接时自动展开父节点
+function expandFilterResults() {
+  if (!hasActiveColumnFilters.value) return
   const set = expandedIds.value
   flatConnections.value.forEach(conn => {
-    if ((conn.host?.toLowerCase().includes(query) ||
-         conn.url?.toLowerCase().includes(query)) &&
-        conn.parentId !== 0) {
+    if (conn.parentId !== 0 && conn.parentId !== conn.id && connectionMatchesFilters(conn)) {
       set.add(conn.parentId)
     }
   })
@@ -209,16 +336,11 @@ function expandSearchResults() {
 const filteredConnections = computed(() => {
   let roots = flatConnections.value.filter(c => c.parentId === 0 || c.parentId === c.id)
 
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase()
-    roots = roots.filter(conn =>
-      conn.host?.toLowerCase().includes(query) ||
-      conn.url?.toLowerCase().includes(query) ||
-      (childrenMap.value[conn.id] || []).some(child =>
-        child.host?.toLowerCase().includes(query) ||
-        child.url?.toLowerCase().includes(query)
-      )
-    )
+  if (hasActiveColumnFilters.value) {
+    roots = roots.filter(conn => {
+      return connectionMatchesFilters(conn) ||
+        (childrenMap.value[conn.id] || []).some(child => connectionMatchesFilters(child))
+    })
   }
   return roots
 })
@@ -248,7 +370,8 @@ const sortedConnections = computed(() => {
   sorted.forEach(parent => {
     result.push({ ...parent, isParent: true })
     if (expandedIds.value.has(parent.id) && childrenMap.value[parent.id]) {
-      childrenMap.value[parent.id].forEach(child => {
+      const visibleChildren = getVisibleChildren(parent.id)
+      visibleChildren.forEach(child => {
         result.push({ ...child, isParent: false })
       })
     }
@@ -296,7 +419,7 @@ const closedConnections = computed(() => {
 // 更新连接列表（后端全量快照替换）
 function updateConnections(data) {
   flatConnections.value = data
-  expandSearchResults()
+  expandFilterResults()
 }
 
 // 处理排序
@@ -338,7 +461,9 @@ function getMethodClass(method) {
     'PATCH': 'method-patch',
     'HEAD': 'method-head',
     'OPTIONS': 'method-options',
-    'CONNECT': 'method-connect'
+    'CONNECT': 'method-connect',
+    'TUNNEL': 'method-connect',
+    'Tcp-Keep-Alive': 'method-connect'
   }
   return methodMap[method] || 'method-default'
 }
@@ -356,6 +481,10 @@ function getProtocolClass(protocol) {
 }
 
 // 生命周期钩子
+watch(columnFilters, () => {
+  expandFilterResults()
+}, { deep: true })
+
 onMounted(() => {
   unsubscribeConnections = wsStore.subscribeConnections((data) => {
     updateConnections(data)
@@ -430,25 +559,80 @@ h1 {
   flex-shrink: 0;
 }
 
-.search-input {
+.quick-filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  width: min(920px, 100%);
+}
+
+.quick-filter-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  min-width: 0;
+  padding: 0 12px;
+  border: 1px solid var(--pm-border);
+  border-radius: 999px;
+  background: var(--pm-bg);
+  color: var(--pm-primary);
+}
+
+.quick-filter-field.id-filter {
+  flex: 0 0 170px;
+}
+
+.quick-filter-field.host-filter {
+  flex: 0 0 280px;
+}
+
+.quick-filter-field.url-filter {
+  flex: 1 1 320px;
+}
+
+.quick-filter-input {
+  min-width: 0;
+  min-height: auto !important;
   flex: 1;
-  max-width: 400px;
-  padding: 10px 15px;
-  background: #2a2a2a;
-  border: 1px solid #3a3a3a;
-  border-radius: 6px;
-  color: #cba376;
-  font-size: 0.95em;
+  border: 0 !important;
+  border-radius: 0 !important;
   outline: none;
-  transition: border-color 0.3s;
+  background: transparent !important;
+  color: var(--pm-text);
+  font: inherit;
+  font-size: 13px;
+  padding: 0 !important;
+  box-shadow: none !important;
 }
 
-.search-input:focus {
-  border-color: #cba376;
+.quick-filter-input:focus {
+  border: 0 !important;
+  box-shadow: none !important;
 }
 
-.search-input::placeholder {
-  color: #666;
+.quick-filter-input::placeholder {
+  color: var(--pm-muted);
+}
+
+.quick-filter-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--pm-muted);
+  cursor: pointer;
+}
+
+.quick-filter-clear:hover {
+  background: rgba(255, 132, 0, 0.14);
+  color: var(--pm-primary);
 }
 
 .btn-close-all {
@@ -518,6 +702,77 @@ h1 {
 
 .th.sortable:hover {
   background: #252525;
+}
+
+.method-filterable {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  overflow: visible !important;
+}
+
+.method-filterable:hover {
+  background: #252525;
+}
+
+.method-filterable.active,
+.method-filterable.has-filter {
+  color: var(--pm-primary);
+}
+
+.method-filter-label {
+  font-size: 12px;
+  color: currentColor;
+}
+
+.method-filter-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 10px;
+  z-index: 50;
+  width: 230px;
+  padding: 8px;
+  border: 1px solid var(--pm-primary);
+  border-radius: 8px;
+  background: var(--pm-surface);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+}
+
+.method-filter-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pm-text);
+  font-family: var(--pm-mono);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.method-filter-option:hover {
+  background: rgba(255, 132, 0, 0.14);
+  color: var(--pm-primary);
+}
+
+.method-filter-option.active {
+  background: rgba(255, 132, 0, 0.16);
+  color: var(--pm-primary);
+}
+
+.method-check-placeholder {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
 }
 
 .sort-icon {
@@ -695,10 +950,6 @@ h1 {
   margin-bottom: 0;
 }
 
-.search-input {
-  max-width: 420px;
-}
-
 .table-section {
   border: 1px solid var(--pm-border);
   background: var(--pm-surface);
@@ -717,6 +968,8 @@ h1 {
 .thead-row {
   background: #2b2b2b;
   border-bottom: 0;
+  overflow: visible;
+  z-index: 30;
 }
 
 .th,

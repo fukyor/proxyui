@@ -21,12 +21,62 @@
 
     <!-- 搜索和操作栏 -->
     <div class="actions-bar">
-      <input
-        v-model="searchQuery"
-        type="text"
-        placeholder="搜索 Host / URL"
-        class="search-input"
-      />
+      <div class="quick-filters">
+        <label class="quick-filter-field id-filter">
+          <Hash :size="16" />
+          <input
+            v-model="columnFilters.id"
+            type="text"
+            class="quick-filter-input"
+            placeholder="搜索 ID，例如 553"
+          />
+          <button
+            v-if="hasColumnFilter('id')"
+            type="button"
+            class="quick-filter-clear"
+            title="清除 ID 搜索"
+            @click="clearColumnFilter('id')"
+          >
+            <X :size="14" />
+          </button>
+        </label>
+        <label class="quick-filter-field host-filter">
+          <Server :size="16" />
+          <input
+            v-model="columnFilters.host"
+            type="text"
+            class="quick-filter-input"
+            placeholder="搜索 Host，例如 google.com"
+          />
+          <button
+            v-if="hasColumnFilter('host')"
+            type="button"
+            class="quick-filter-clear"
+            title="清除 Host 搜索"
+            @click="clearColumnFilter('host')"
+          >
+            <X :size="14" />
+          </button>
+        </label>
+        <label class="quick-filter-field url-filter">
+          <LinkIcon :size="16" />
+          <input
+            v-model="columnFilters.url"
+            type="text"
+            class="quick-filter-input"
+            placeholder="搜索 URL，例如 /session_svr"
+          />
+          <button
+            v-if="hasColumnFilter('url')"
+            type="button"
+            class="quick-filter-clear"
+            title="清除 URL 搜索"
+            @click="clearColumnFilter('url')"
+          >
+            <X :size="14" />
+          </button>
+        </label>
+      </div>
       <button @click="handleClearHistory" class="btn-clear-history">清空历史</button>
     </div>
 
@@ -36,7 +86,31 @@
         <!-- sticky 吸顶表头 -->
         <div class="conn-grid-row thead-row">
           <div class="th">ID</div>
-          <div class="th">方法</div>
+          <div
+            class="th method-filterable"
+            :class="{ active: methodMenuOpen, 'has-filter': hasColumnFilter('method') }"
+            @click.stop="toggleMethodMenu"
+          >
+            <span>方法</span>
+            <span class="method-filter-label">{{ methodFilterLabel }}</span>
+            <ChevronUp v-if="methodMenuOpen" :size="14" />
+            <ChevronDown v-else :size="14" />
+
+            <div v-if="methodMenuOpen" class="method-filter-menu" @click.stop>
+              <button
+                v-for="option in connectionMethodOptions"
+                :key="option.value || 'all'"
+                type="button"
+                class="method-filter-option"
+                :class="{ active: columnFilters.method === option.value }"
+                @click.stop="selectMethodFilter(option.value)"
+              >
+                <Check v-if="columnFilters.method === option.value" :size="14" />
+                <span v-else class="method-check-placeholder"></span>
+                {{ option.label }}
+              </button>
+            </div>
+          </div>
           <div class="th">Host</div>
           <div class="th">URL</div>
           <div class="th">协议</div>
@@ -46,7 +120,7 @@
 
         <!-- 空数据提示 -->
         <div v-if="filteredHistoryConnections.length === 0" class="no-data">
-          {{ searchQuery ? '未找到匹配的历史连接' : '暂无历史记录' }}
+          {{ hasActiveColumnFilters ? '未找到匹配的历史连接' : '暂无历史记录' }}
         </div>
 
         <!-- 虚拟高度容器 -->
@@ -92,26 +166,82 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
+import { Check, ChevronDown, ChevronUp, Hash, Link as LinkIcon, Server, X } from 'lucide-vue-next'
 import { useWebSocketStore } from '@/stores/websocket'
 
 const wsStore = useWebSocketStore()
 
 // 响应式数据
 const flatHistoryConnections = ref([])
-const searchQuery = ref('')
 const historyScrollerRef = ref(null)
+const methodMenuOpen = ref(false)
+const columnFilters = ref({
+  id: '',
+  method: '',
+  host: '',
+  url: ''
+})
+
+const filterFields = ['id', 'method', 'host', 'url']
+const connectionMethodOptions = [
+  { value: '', label: '全部方法' },
+  { value: 'GET', label: 'GET' },
+  { value: 'POST', label: 'POST' },
+  { value: 'PUT', label: 'PUT' },
+  { value: 'DELETE', label: 'DELETE' },
+  { value: 'PATCH', label: 'PATCH' },
+  { value: 'HEAD', label: 'HEAD' },
+  { value: 'OPTIONS', label: 'OPTIONS' },
+  { value: 'CONNECT', label: 'CONNECT' },
+  { value: 'TUNNEL', label: 'TUNNEL' },
+  { value: 'Tcp-Keep-Alive', label: 'Tcp-Keep-Alive' }
+]
 
 let unsubscribeHistory = null
+
+function hasColumnFilter(field) {
+  return Boolean(columnFilters.value[field]?.trim())
+}
+
+function clearColumnFilter(field) {
+  columnFilters.value[field] = ''
+}
+
+function toggleMethodMenu() {
+  methodMenuOpen.value = !methodMenuOpen.value
+}
+
+function selectMethodFilter(method) {
+  columnFilters.value.method = method
+  methodMenuOpen.value = false
+}
+
+const methodFilterLabel = computed(() => columnFilters.value.method || '全部')
+
+const hasActiveColumnFilters = computed(() => {
+  return filterFields.some(field => hasColumnFilter(field))
+})
+
+function normalizeFilterValue(value) {
+  return String(value ?? '').toLowerCase()
+}
+
+function connectionMatchesFilters(conn) {
+  return filterFields.every(field => {
+    const query = columnFilters.value[field]?.trim().toLowerCase()
+    if (!query) return true
+    if (field === 'method') {
+      return normalizeFilterValue(conn.method) === query
+    }
+    return normalizeFilterValue(conn[field]).includes(query)
+  })
+}
 
 // 历史记录虚拟滚动器（仅过滤不展开子节点）
 const filteredHistoryConnections = computed(() => {
   let result = flatHistoryConnections.value
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase()
-    result = result.filter(conn =>
-      conn.host?.toLowerCase().includes(query) ||
-      (conn.url && conn.url.toLowerCase().includes(query))
-    )
+  if (hasActiveColumnFilters.value) {
+    result = result.filter(conn => connectionMatchesFilters(conn))
   }
   return result
 })
@@ -158,7 +288,9 @@ function getMethodClass(method) {
     'PATCH': 'method-patch',
     'HEAD': 'method-head',
     'OPTIONS': 'method-options',
-    'CONNECT': 'method-connect'
+    'CONNECT': 'method-connect',
+    'TUNNEL': 'method-connect',
+    'Tcp-Keep-Alive': 'method-connect'
   }
   return methodMap[method] || 'method-default'
 }
@@ -246,21 +378,80 @@ h1 {
   flex-shrink: 0;
 }
 
-.search-input {
-  flex: 1;
-  max-width: 400px;
-  padding: 10px 15px;
-  background: #2a2a2a;
-  border: 1px solid #3a3a3a;
-  border-radius: 6px;
-  color: #cba376;
-  font-size: 0.95em;
-  outline: none;
-  transition: border-color 0.3s;
+.quick-filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  width: min(920px, 100%);
 }
 
-.search-input:focus {
-  border-color: #cba376;
+.quick-filter-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  min-width: 0;
+  padding: 0 12px;
+  border: 1px solid var(--pm-border);
+  border-radius: 999px;
+  background: var(--pm-bg);
+  color: var(--pm-primary);
+}
+
+.quick-filter-field.id-filter {
+  flex: 0 0 170px;
+}
+
+.quick-filter-field.host-filter {
+  flex: 0 0 280px;
+}
+
+.quick-filter-field.url-filter {
+  flex: 1 1 320px;
+}
+
+.quick-filter-input {
+  min-width: 0;
+  min-height: auto !important;
+  flex: 1;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: none;
+  background: transparent !important;
+  color: var(--pm-text);
+  font: inherit;
+  font-size: 13px;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+
+.quick-filter-input:focus {
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.quick-filter-input::placeholder {
+  color: var(--pm-muted);
+}
+
+.quick-filter-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--pm-muted);
+  cursor: pointer;
+}
+
+.quick-filter-clear:hover {
+  background: rgba(255, 132, 0, 0.14);
+  color: var(--pm-primary);
 }
 
 .btn-clear-history {
@@ -320,6 +511,77 @@ h1 {
   padding: 12px;
   font-weight: 600;
   white-space: nowrap;
+}
+
+.method-filterable {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  overflow: visible !important;
+}
+
+.method-filterable:hover {
+  background: #252525;
+}
+
+.method-filterable.active,
+.method-filterable.has-filter {
+  color: var(--pm-primary);
+}
+
+.method-filter-label {
+  font-size: 12px;
+  color: currentColor;
+}
+
+.method-filter-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 10px;
+  z-index: 50;
+  width: 230px;
+  padding: 8px;
+  border: 1px solid var(--pm-primary);
+  border-radius: 8px;
+  background: var(--pm-surface);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+}
+
+.method-filter-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pm-text);
+  font-family: var(--pm-mono);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.method-filter-option:hover {
+  background: rgba(255, 132, 0, 0.14);
+  color: var(--pm-primary);
+}
+
+.method-filter-option.active {
+  background: rgba(255, 132, 0, 0.16);
+  color: var(--pm-primary);
+}
+
+.method-check-placeholder {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
 }
 
 /* 数据单元格 */
@@ -443,10 +705,6 @@ h1 {
   margin-bottom: 0;
 }
 
-.search-input {
-  max-width: 420px;
-}
-
 .table-section {
   border: 1px solid var(--pm-border);
   background: var(--pm-surface);
@@ -465,6 +723,8 @@ h1 {
 .thead-row {
   background: #2b2b2b;
   border-bottom: 0;
+  overflow: visible;
+  z-index: 30;
 }
 
 .th,

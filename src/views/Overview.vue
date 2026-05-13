@@ -145,7 +145,7 @@
         <div class="overview-section-head">
           <div>
             <h2>活动连接 ({{ totalActiveCount }})</h2>
-            <p>Overview 仅展示前 50 条活动子连接</p>
+            <p>虚拟滚动渲染全部活动子连接</p>
           </div>
           <div class="connection-actions">
             <button class="connection-close" @click="handleCloseAll">关闭所有连接</button>
@@ -153,7 +153,7 @@
           </div>
         </div>
 
-        <div class="connection-table">
+        <div ref="connectionScrollerRef" class="connection-table">
           <div class="connection-row connection-header">
             <span>ID</span>
             <span>方法</span>
@@ -165,21 +165,40 @@
           </div>
           <div v-if="connections.length === 0" class="connection-empty">暂无活动连接</div>
           <div
-            v-for="(conn, index) in connections"
             v-else
-            :key="conn.id"
-            class="connection-row"
-            :class="{ muted: index % 2 === 1 }"
+            class="connection-virtual-spacer"
+            :style="{ height: connectionTotalSize + 'px' }"
           >
-            <span>{{ conn.id }}</span>
-            <span class="method-cell" :class="`method-${String(conn.method || '').toLowerCase()}`">
-              {{ conn.method || '未知' }}
-            </span>
-            <span :title="conn.host">{{ conn.host || '-' }}</span>
-            <span :title="conn.url">{{ conn.url || '-' }}</span>
-            <span>{{ conn.protocol || '-' }}</span>
-            <span>{{ formatBytes(conn.up || 0) }}</span>
-            <span>{{ formatBytes(conn.down || 0) }}</span>
+            <div
+              v-for="virtualRow in connectionVirtualRows"
+              :key="virtualRow.key"
+              :ref="(el) => { if (el) connectionVirtualizer.measureElement(el) }"
+              :data-index="virtualRow.index"
+              class="connection-virtual-row"
+              :style="{ transform: `translateY(${virtualRow.start}px)` }"
+            >
+              <div
+                class="connection-row"
+                :class="{ muted: virtualRow.index % 2 === 1 }"
+              >
+                <span>{{ connections[virtualRow.index].id }}</span>
+                <span
+                  class="method-cell"
+                  :class="`method-${String(connections[virtualRow.index].method || '').toLowerCase()}`"
+                >
+                  {{ connections[virtualRow.index].method || '未知' }}
+                </span>
+                <span :title="connections[virtualRow.index].host">
+                  {{ connections[virtualRow.index].host || '-' }}
+                </span>
+                <span :title="connections[virtualRow.index].url">
+                  {{ connections[virtualRow.index].url || '-' }}
+                </span>
+                <span>{{ connections[virtualRow.index].protocol || '-' }}</span>
+                <span>{{ formatBytes(connections[virtualRow.index].up || 0) }}</span>
+                <span>{{ formatBytes(connections[virtualRow.index].down || 0) }}</span>
+              </div>
+            </div>
           </div>
         </div>
       </article>
@@ -189,6 +208,7 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useVirtualizer } from '@tanstack/vue-virtual'
 import { RouterLink } from 'vue-router'
 import { Chart, registerables } from 'chart.js'
 import { Route as RouteIcon, ShieldCheck } from 'lucide-vue-next'
@@ -197,7 +217,6 @@ import { useWebSocketStore } from '@/stores/websocket'
 Chart.register(...registerables)
 
 const wsStore = useWebSocketStore()
-const OVERVIEW_MAX_DISPLAY = 50
 const TRAFFIC_CHART_POINTS = 60
 const TRAFFIC_CHART_IDLE_MAX = 1024
 const TRAFFIC_CHART_MIN_ACTIVE_MAX = 512
@@ -211,10 +230,24 @@ const totalUpload = ref(0)
 const totalDownload = ref(0)
 const totalActiveCount = ref(0)
 const connections = ref([])
+const connectionScrollerRef = ref(null)
 
 let chart = null
 let unsubscribeTraffic = null
 let unsubscribeConnections = null
+
+const connectionVirtualizer = useVirtualizer(
+  computed(() => ({
+    count: connections.value.length,
+    getScrollElement: () => connectionScrollerRef.value,
+    estimateSize: () => 48,
+    overscan: 10,
+    getItemKey: (index) => connections.value[index]?.id ?? index
+  }))
+)
+
+const connectionVirtualRows = computed(() => connectionVirtualizer.value.getVirtualItems())
+const connectionTotalSize = computed(() => connectionVirtualizer.value.getTotalSize())
 
 const enabledAccessRuleCount = computed(() => {
   const rules = wsStore.config?.AccessRules ?? []
@@ -453,7 +486,7 @@ function updateChart(data = {}) {
 function updateConnections(data = []) {
   const activeChildren = data.filter(conn => conn.parentId !== 0 && conn.status === 'Active')
   totalActiveCount.value = activeChildren.length
-  connections.value = activeChildren.slice(0, OVERVIEW_MAX_DISPLAY)
+  connections.value = activeChildren
 }
 
 function handleCloseAll() {
@@ -950,11 +983,13 @@ onUnmounted(() => {
 }
 
 .connection-table {
+  position: relative;
   display: flex;
   flex: 1;
   min-height: 0;
   flex-direction: column;
-  overflow: hidden;
+  overflow: auto;
+  overscroll-behavior: contain;
   border: 1px solid var(--border, #2e2e2e);
   border-radius: 6px;
   background: var(--background, #111111);
@@ -972,8 +1007,24 @@ onUnmounted(() => {
 }
 
 .connection-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   height: 34px;
   background: var(--secondary, #2e2e2e);
+}
+
+.connection-virtual-spacer {
+  position: relative;
+  width: 100%;
+  flex: 0 0 auto;
+}
+
+.connection-virtual-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
 }
 
 .connection-row.muted {
