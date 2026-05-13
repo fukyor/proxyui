@@ -17,7 +17,7 @@ const advancedOptions = [
   { key: 'KeepDestHeaders', label: '保留目标 Header', hint: '保留自定义响应头 (建议开启)' },
   { key: 'ConnectMaintain', label: '隧道维持', hint: '持久维持隧道连接' },
   { key: 'MitmEnabled', label: '启用 MITM', hint: '开启中间人模式总开关 (谨慎使用，正常使用时请保持关闭)' },
-  { key: 'HttpMitmNoTunnel', label: '非隧道HTTP MITM', hint: '非隧道模式MITM' }
+  { key: 'HttpMitmNoTunnel', label: '非隧道HTTP MITM', hint: 'http的MITM劫持,http使用的是full url而不是connect' }
 ]
 
 // 本地配置副本
@@ -183,7 +183,7 @@ async function saveConfig() {
 
     <!-- ===== 新增：代理防环配置 ===== -->
     <div class="section">
-      <h3>代理防环&证书配置</h3>
+      <h3>代理防环&证书配置(证书默认已经添加本地回环,下面的地址会追加到服务器证书中)</h3>
       <div class="public-ips-row">
         <span>公网 IP 列表</span>
         <input
