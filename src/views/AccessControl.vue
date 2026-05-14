@@ -170,18 +170,19 @@ function formatTime(timeStr) {
 
 <template>
   <div class="access-control">
-    <!-- 页面头部操作按钮 -->
-    <div class="page-actions">
-      <button class="btn btn-secondary" @click="loadConfig" :disabled="loading">
-        {{ loading ? '加载中...' : '刷新' }}
-      </button>
-      <div class="save-btn-container">
-        <button class="btn btn-primary" @click="saveConfig" :disabled="saving">
-          {{ saving ? '保存中...' : '保存配置' }}
+    <Teleport defer to="#security-policy-header-actions">
+      <div class="header-actions">
+        <button class="btn btn-secondary" @click="loadConfig" :disabled="loading">
+          {{ loading ? '加载中...' : '刷新' }}
         </button>
-        <span v-if="hasChanges" class="badge-dot"></span>
+        <div class="save-btn-container">
+          <button class="btn btn-primary" @click="saveConfig" :disabled="saving">
+            {{ saving ? '保存中...' : '保存配置' }}
+          </button>
+          <span v-if="hasChanges" class="badge-dot"></span>
+        </div>
       </div>
-    </div>
+    </Teleport>
 
     <div v-if="errorMsg" class="alert alert-error">{{ errorMsg }}</div>
     <div v-if="successMsg" class="alert alert-success">{{ successMsg }}</div>
@@ -317,11 +318,9 @@ function formatTime(timeStr) {
   max-width: 1000px;
 }
 
-.page-actions {
+.header-actions {
   display: flex;
   gap: 10px;
-  justify-content: flex-end;
-  margin-bottom: 20px;
 }
 
 .section {
@@ -344,6 +343,7 @@ function formatTime(timeStr) {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 16px;
+  gap: 16px;
 }
 
 .section-header h3 {
@@ -612,7 +612,6 @@ input:checked + .slider:before {
   gap: 16px;
 }
 
-.page-actions,
 .section {
   margin-bottom: 0;
 }

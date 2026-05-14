@@ -9,14 +9,44 @@
 
     <!-- 控制栏 -->
     <div class="controls">
-      <div class="filter-group">
-        <label for="logLevel">日志级别</label>
-        <select id="logLevel" v-model="selectedLevel" @change="handleLevelChange">
-          <option value="DEBUG">DEBUG</option>
-          <option value="INFO">INFO</option>
-          <option value="WARN">WARN</option>
-          <option value="ERROR">ERROR</option>
-        </select>
+      <div class="filter-controls">
+        <div class="filter-group">
+          <label for="logLevel">日志级别</label>
+          <select id="logLevel" v-model="selectedLevel" @change="handleLevelChange">
+            <option value="DEBUG">DEBUG</option>
+            <option value="INFO">INFO</option>
+            <option value="WARN">WARN</option>
+            <option value="ERROR">ERROR</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label for="logCategory">日志分类</label>
+          <select id="logCategory" v-model="selectedCategory">
+            <option
+              v-for="option in categoryOptions"
+              :key="option.value"
+              :value="option.value"
+            >
+              {{ option.label }}
+            </option>
+          </select>
+        </div>
+
+        <div class="filter-group message-filter">
+          <label for="messageSearch">message 搜索</label>
+          <input
+            id="messageSearch"
+            v-model="messageSearch"
+            class="message-search"
+            type="search"
+            placeholder="message 正则"
+            spellcheck="false"
+          >
+          <span v-if="messageSearchState.error" class="search-error">
+            {{ messageSearchState.error }}
+          </span>
+        </div>
       </div>
 
       <div class="button-group">
@@ -48,6 +78,7 @@
             }"
           >
             <div
+              v-if="filteredLogs[virtualRow.index]"
               :class="['log-entry', `log-${filteredLogs[virtualRow.index].level.toLowerCase()}`]"
             >
               <span class="log-time">{{ formatTime(filteredLogs[virtualRow.index].time) }}</span>
@@ -63,7 +94,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import { useWebSocketStore } from '@/stores/websocket'
 
@@ -71,6 +102,8 @@ const wsStore = useWebSocketStore()
 
 // 响应式数据
 const selectedLevel = ref('INFO')
+const selectedCategory = ref('focus')
+const messageSearch = ref('')
 const autoScroll = ref(true)
 const scrollerRef = ref(null)
 
@@ -78,14 +111,58 @@ let unsubscribeLogs = null
 
 // 日志级别权重（用于过滤）
 const logLevels = { DEBUG: 0, INFO: 1, WARN: 2, ERROR: 3 }
+const focusCategories = new Set(['route', 'access'])
+const categoryOptions = [
+  { value: 'focus', label: '用户关注' },
+  { value: 'all', label: '全部' },
+  { value: 'route', label: '路由匹配' },
+  { value: 'access', label: '访问控制' },
+  { value: 'traffic', label: '流量统计' },
+  { value: 'request', label: '请求响应' },
+  { value: 'websocket', label: 'WebSocket' },
+  { value: 'mitm', label: 'MITM/TLS' },
+  { value: 'network', label: '网络错误' },
+  { value: 'system', label: '系统' },
+  { value: 'general', label: '通用' },
+]
+
+// message 搜索状态，正则无效时不参与过滤
+const messageSearchState = computed(() => {
+  const pattern = messageSearch.value.trim()
+  if (!pattern) {
+    return { regex: null, error: '' }
+  }
+
+  try {
+    return { regex: new RegExp(pattern, 'i'), error: '' }
+  } catch {
+    return { regex: null, error: '正则无效，已暂不应用搜索' }
+  }
+})
 
 // 计算过滤后的日志
 const filteredLogs = computed(() => {
-  const minLevel = logLevels[selectedLevel.value]
-  return wsStore.logs.filter(log => {
-    const logLevel = logLevels[log.level]
+  const minLevel = logLevels[selectedLevel.value] ?? logLevels.INFO
+  const category = selectedCategory.value
+  const messageRegex = messageSearchState.value.regex
+
+  let result = wsStore.logs.filter(log => {
+    const logLevel = logLevels[log.level] ?? logLevels.INFO
     return logLevel >= minLevel
   })
+
+  result = result.filter(log => {
+    const logCategory = log.category || 'general'
+    if (category === 'all') return true
+    if (category === 'focus') return focusCategories.has(logCategory)
+    return logCategory === category
+  })
+
+  if (!messageRegex) {
+    return result
+  }
+
+  return result.filter(log => messageRegex.test(String(log.message || '')))
 })
 
 // 虚拟滚动器
@@ -93,9 +170,9 @@ const virtualizer = useVirtualizer(
   computed(() => ({
     count: filteredLogs.value.length,
     getScrollElement: () => scrollerRef.value,
-    estimateSize: () => 34,
+    estimateSize: () => 40,
     overscan: 20,
-    getItemKey: (index) => filteredLogs.value[index].id,
+    getItemKey: (index) => filteredLogs.value[index]?.id ?? index,
   }))
 )
 
@@ -151,6 +228,10 @@ onMounted(() => {
 onUnmounted(() => {
   if (unsubscribeLogs) unsubscribeLogs()
 })
+
+watch([selectedLevel, selectedCategory, messageSearch], () => {
+  scrollToBottom()
+})
 </script>
 
 <style scoped>
@@ -171,10 +252,19 @@ h1 {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
   background: #2a2a2a;
   padding: 15px 20px;
   border-radius: 8px;
   margin-bottom: 20px;
+}
+
+.filter-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  min-width: 0;
 }
 
 .filter-group {
@@ -188,7 +278,8 @@ h1 {
   font-weight: 500;
 }
 
-.filter-group select {
+.filter-group select,
+.message-search {
   padding: 6px 12px;
   background: #1a1a1a;
   color: #cba376;
@@ -198,14 +289,32 @@ h1 {
   font-size: 0.9em;
 }
 
-.filter-group select:focus {
+.message-filter {
+  position: relative;
+}
+
+.message-search {
+  width: min(320px, 38vw);
+  min-width: 180px;
+  cursor: text;
+}
+
+.filter-group select:focus,
+.message-search:focus {
   outline: none;
   border-color: #cba376;
+}
+
+.search-error {
+  color: #f0ad4e;
+  font-size: 0.85em;
+  white-space: nowrap;
 }
 
 .button-group {
   display: flex;
   gap: 10px;
+  flex-shrink: 0;
 }
 
 .btn-clear,
@@ -392,6 +501,27 @@ h1 {
 @media (max-width: 760px) {
   .logs {
     padding: 20px;
+  }
+
+  .controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .filter-controls,
+  .filter-group,
+  .button-group {
+    width: 100%;
+  }
+
+  .filter-group {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .filter-group select,
+  .message-search {
+    width: 100%;
   }
 
   .log-entry {

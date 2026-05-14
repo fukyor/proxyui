@@ -20,8 +20,11 @@ const activeTab = computed(() => {
   <div class="security-policy-layout">
     <!-- 模块标题 -->
     <div class="module-header">
-      <h2>安全策略</h2>
-      <p>访问控制、拦截日志和用户来源流量统一入口。</p>
+      <div class="module-header-copy">
+        <h2>安全策略</h2>
+        <p>访问控制、拦截日志和用户来源流量统一入口。</p>
+      </div>
+      <div id="security-policy-header-actions" class="module-header-actions"></div>
     </div>
 
     <!-- 二级导航 -->
@@ -55,6 +58,10 @@ const activeTab = computed(() => {
 }
 
 .module-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   margin-bottom: 16px;
 }
 
@@ -68,6 +75,15 @@ const activeTab = computed(() => {
 .module-header p {
   margin: 8px 0 0;
   color: var(--pm-muted);
+}
+
+.module-header-actions {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.module-header-actions:empty {
+  display: none;
 }
 
 /* 二级导航 */

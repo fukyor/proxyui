@@ -280,6 +280,7 @@ export const useWebSocketStore = defineStore('websocket', () => {
 
     const newLogs = dataArray.map(data => ({
       ...data,
+      category: data.category || 'general',
       id: Math.random().toString(36).slice(2)
     }))
 

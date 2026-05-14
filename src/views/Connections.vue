@@ -178,7 +178,7 @@
                 >
                   {{ expandedIds.has(sortedConnections[virtualRow.index].id) ? '▼' : '▶' }}
                 </span>
-                <span v-else class="expand-placeholder"></span>
+                <span v-else-if="sortedConnections[virtualRow.index].isParent" class="expand-placeholder"></span>
                 {{ sortedConnections[virtualRow.index].id }}
               </div>
               <div class="td">
